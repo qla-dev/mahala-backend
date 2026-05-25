@@ -1,0 +1,65 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use App\Models\Mahala;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class MahalaApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_it_lists_mahalas(): void
+    {
+        Mahala::query()->create([
+            'id' => 'user-test-mahala',
+            'name' => 'Test Mahala',
+            'level' => 2,
+            'latitude' => 43.8500000,
+            'longitude' => 18.4200000,
+            'coordinates' => [
+                ['latitude' => 43.85, 'longitude' => 18.42],
+                ['latitude' => 43.86, 'longitude' => 18.43],
+                ['latitude' => 43.84, 'longitude' => 18.44],
+            ],
+            'holes' => [],
+        ]);
+
+        $response = $this->getJson('/api/mahalas');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', 'user-test-mahala')
+            ->assertJsonPath('data.0.name', 'Test Mahala')
+            ->assertJsonPath('data.0.level', 2);
+    }
+
+    public function test_it_creates_a_mahala_without_id_or_center(): void
+    {
+        $response = $this->postJson('/api/mahalas', [
+            'name' => 'New Test Mahala',
+            'coordinates' => [
+                ['latitude' => 43.85, 'longitude' => 18.42],
+                ['latitude' => 43.86, 'longitude' => 18.43],
+                ['latitude' => 43.84, 'longitude' => 18.44],
+            ],
+            'holes' => [],
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.id', 'user-new-test-mahala')
+            ->assertJsonPath('data.name', 'New Test Mahala')
+            ->assertJsonPath('data.level', 2);
+
+        $this->assertEqualsWithDelta(43.85, $response->json('data.center.latitude'), 0.000001);
+        $this->assertEqualsWithDelta(18.43, $response->json('data.center.longitude'), 0.000001);
+        $this->assertDatabaseHas('mahalas', [
+            'id' => 'user-new-test-mahala',
+            'name' => 'New Test Mahala',
+            'level' => 2,
+        ]);
+    }
+}
