@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Mahala extends Model
 {
@@ -20,6 +21,10 @@ class Mahala extends Model
     protected $fillable = [
         'id',
         'name',
+        'slug',
+        'status',
+        'privacy',
+        'owner_id',
         'level',
         'latitude',
         'longitude',
@@ -31,10 +36,17 @@ class Mahala extends Model
     {
         return [
             'level' => 'integer',
+            'privacy' => 'integer',
+            'owner_id' => 'integer',
             'coordinates' => 'array',
             'holes' => 'array',
             'latitude' => 'float',
             'longitude' => 'float',
         ];
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
     }
 }

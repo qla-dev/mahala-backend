@@ -80,7 +80,7 @@ class MahalaController extends Controller
     {
         try {
             $mahala = Mahala::query()->findOrFail($id);
-            $validated = $request->validate($this->rules(isUpdate: true));
+            $validated = $request->validate($this->rules(isUpdate: true, mahala: $mahala));
             $mahala->update($this->buildAttributes($validated, $mahala));
             $mahala->refresh();
 
@@ -133,7 +133,7 @@ class MahalaController extends Controller
         }
     }
 
-    private function rules(bool $isUpdate = false): array
+    private function rules(bool $isUpdate = false, ?Mahala $mahala = null): array
     {
         $required = $isUpdate ? 'sometimes' : 'required';
 
@@ -145,6 +145,16 @@ class MahalaController extends Controller
                 $isUpdate ? null : Rule::unique('mahalas', 'id'),
             ]),
             'name' => [$required, 'string', 'max:255'],
+            'slug' => array_filter([
+                'sometimes',
+                'string',
+                'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('mahalas', 'slug')->ignore($mahala?->getKey(), 'id'),
+            ]),
+            'status' => [$required, 'string'],
+            'privacy' => ['sometimes', 'integer', 'min:0'],
+            'owner_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'level' => ['sometimes', 'integer'],
             'latitude' => ['sometimes', 'numeric', 'between:-90,90'],
             'longitude' => ['sometimes', 'numeric', 'between:-180,180'],
@@ -166,6 +176,10 @@ class MahalaController extends Controller
         return [
             'id' => $mahala?->id ?? $this->resolveId($validated['id'] ?? null, $validated['name']),
             'name' => $validated['name'] ?? $mahala->name,
+            'slug' => $validated['slug'] ?? $mahala?->slug ?? $this->resolveSlug($validated['name'] ?? $mahala?->name ?? '', $mahala),
+            'status' => $validated['status'] ?? $mahala?->status ?? '',
+            'privacy' => $validated['privacy'] ?? $mahala?->privacy ?? 0,
+            'owner_id' => array_key_exists('owner_id', $validated) ? $validated['owner_id'] : $mahala?->owner_id,
             'level' => $validated['level'] ?? $mahala?->level ?? 2,
             'latitude' => $latitude,
             'longitude' => $longitude,
@@ -179,6 +193,10 @@ class MahalaController extends Controller
         return [
             'id' => $mahala->id,
             'name' => $mahala->name,
+            'slug' => $mahala->slug,
+            'status' => $mahala->status,
+            'privacy' => $mahala->privacy,
+            'owner_id' => $mahala->owner_id,
             'level' => $mahala->level,
             'center' => [
                 'latitude' => $mahala->latitude,
@@ -212,6 +230,35 @@ class MahalaController extends Controller
         }
 
         return $resolvedId;
+    }
+
+    private function resolveSlug(string $name, ?Mahala $mahala = null): string
+    {
+        $baseSlug = Str::slug($name);
+
+        if ($baseSlug === '') {
+            $baseSlug = $mahala?->slug ?: Str::slug($mahala?->id ?? '');
+        }
+
+        if ($baseSlug === '') {
+            $baseSlug = 'mahala';
+        }
+
+        $resolvedSlug = $baseSlug;
+        $suffix = 2;
+
+        $query = Mahala::query();
+
+        if ($mahala !== null) {
+            $query->where($mahala->getKeyName(), '!=', $mahala->getKey());
+        }
+
+        while ((clone $query)->where('slug', $resolvedSlug)->exists()) {
+            $resolvedSlug = "{$baseSlug}-{$suffix}";
+            $suffix++;
+        }
+
+        return $resolvedSlug;
     }
 
     private function resolveCenter(array $validated, array $coordinates, ?Mahala $mahala = null): array
