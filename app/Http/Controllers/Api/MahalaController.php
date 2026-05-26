@@ -9,7 +9,9 @@ use Illuminate\Database\QueryException;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class MahalaController extends Controller
 {
@@ -50,6 +52,69 @@ class MahalaController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'An unexpected error occurred while creating the mahala.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function bulkSave(Request $request)
+    {
+        $payload = $request->validate([
+            'mahalas' => ['required', 'array', 'min:1'],
+            'mahalas.*' => ['array'],
+        ]);
+
+        try {
+            $mahalas = DB::transaction(function () use ($payload) {
+                return collect($payload['mahalas'])
+                    ->map(function (array $mahalaPayload) {
+                        $existingMahala = isset($mahalaPayload['id'])
+                            ? Mahala::query()->find($mahalaPayload['id'])
+                            : null;
+
+                        $validatedPayload = $mahalaPayload;
+
+                        if ($existingMahala !== null) {
+                            unset($validatedPayload['id']);
+                        }
+
+                        $validated = validator(
+                            $validatedPayload,
+                            $this->rules(
+                                isUpdate: $existingMahala !== null,
+                                mahala: $existingMahala,
+                            ),
+                        )->validate();
+
+                        if ($existingMahala !== null) {
+                            $existingMahala->update($this->buildAttributes($validated, $existingMahala));
+                            $existingMahala->refresh();
+
+                            return $this->formatMahala($existingMahala);
+                        }
+
+                        $mahala = Mahala::query()->create($this->buildAttributes($validated));
+
+                        return $this->formatMahala($mahala);
+                    })
+                    ->values()
+                    ->all();
+            });
+
+            return response()->json([
+                'message' => 'Mahalas saved successfully.',
+                'data' => $mahalas,
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'A database error occurred while saving mahalas.',
+                'error' => $e->getMessage(),
+            ], 500);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'An unexpected error occurred while saving mahalas.',
                 'error' => $e->getMessage(),
             ], 500);
         }

@@ -82,4 +82,82 @@ class MahalaApiTest extends TestCase
             'level' => 2,
         ]);
     }
+
+    public function test_it_bulk_saves_multiple_mahalas(): void
+    {
+        Mahala::query()->create([
+            'id' => 'user-first-mahala',
+            'name' => 'First Mahala',
+            'slug' => 'first-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.85,
+            'longitude' => 18.42,
+            'coordinates' => [
+                ['latitude' => 43.85, 'longitude' => 18.42],
+                ['latitude' => 43.86, 'longitude' => 18.43],
+                ['latitude' => 43.84, 'longitude' => 18.44],
+            ],
+            'holes' => [],
+        ]);
+
+        Mahala::query()->create([
+            'id' => 'user-second-mahala',
+            'name' => 'Second Mahala',
+            'slug' => 'second-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.80,
+            'longitude' => 18.40,
+            'coordinates' => [
+                ['latitude' => 43.80, 'longitude' => 18.40],
+                ['latitude' => 43.81, 'longitude' => 18.41],
+                ['latitude' => 43.79, 'longitude' => 18.42],
+            ],
+            'holes' => [],
+        ]);
+
+        $response = $this->postJson('/api/mahalas/bulk-save', [
+            'mahalas' => [
+                [
+                    'id' => 'user-first-mahala',
+                    'coordinates' => [
+                        ['latitude' => 43.851, 'longitude' => 18.421],
+                        ['latitude' => 43.861, 'longitude' => 18.431],
+                        ['latitude' => 43.841, 'longitude' => 18.441],
+                    ],
+                    'holes' => [],
+                ],
+                [
+                    'id' => 'user-second-mahala',
+                    'coordinates' => [
+                        ['latitude' => 43.802, 'longitude' => 18.402],
+                        ['latitude' => 43.812, 'longitude' => 18.412],
+                        ['latitude' => 43.792, 'longitude' => 18.422],
+                    ],
+                    'holes' => [],
+                ],
+            ],
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', 'user-first-mahala')
+            ->assertJsonPath('data.1.id', 'user-second-mahala');
+
+        $this->assertDatabaseHas('mahalas', [
+            'id' => 'user-first-mahala',
+            'latitude' => 43.851,
+            'longitude' => 18.431,
+        ]);
+
+        $this->assertDatabaseHas('mahalas', [
+            'id' => 'user-second-mahala',
+            'latitude' => 43.802,
+            'longitude' => 18.412,
+        ]);
+    }
 }
