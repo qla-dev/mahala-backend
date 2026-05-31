@@ -14,6 +14,20 @@ use Illuminate\Validation\ValidationException;
 
 class PostController extends Controller
 {
+    private const GENERAL_TOPIC_COLORS = [
+        'glavna' => '#7c3aed',
+        'eventi' => '#ec4899',
+        'posao' => '#06b6d4',
+        'ljubimci' => '#84cc16',
+        'izgubljeno-i-nadjeno' => '#fde047',
+        'politika' => '#dc2626',
+        'nocna-smjena' => '#0b0a10',
+        'gaming' => '#8b5e34',
+        'sport' => '#ef4444',
+        'prodajem-i-kupujem' => '#2dd4bf',
+        'dating' => '#ec4899',
+    ];
+
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -268,7 +282,7 @@ class PostController extends Controller
             'author_user_id' => $post->author_user_id,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
-            'color_hex' => $topic?->color_hex ?? '#7c3aed',
+            'color_hex' => $topic?->color_hex ?? $this->resolveGeneralTopicColor($post->channel_id, $post->mahala_id),
             'image_uri' => $post->image_uri,
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
@@ -302,5 +316,29 @@ class PostController extends Controller
                 fn (Topic $topic) => "{$topic->slug}-{$topic->mahala_id}" === $channelId
                     || $topic->slug === $channelId,
             );
+    }
+
+    private function resolveGeneralTopicColor(?string $channelId, ?string $mahalaId = null): string
+    {
+        $slug = $this->resolveChannelSlug($channelId, $mahalaId);
+
+        return self::GENERAL_TOPIC_COLORS[$slug] ?? '#7c3aed';
+    }
+
+    private function resolveChannelSlug(?string $channelId, ?string $mahalaId = null): string
+    {
+        if (!$channelId) {
+            return 'glavna';
+        }
+
+        if ($mahalaId) {
+            $suffix = "-{$mahalaId}";
+
+            if (str_ends_with($channelId, $suffix)) {
+                return substr($channelId, 0, -strlen($suffix));
+            }
+        }
+
+        return $channelId;
     }
 }

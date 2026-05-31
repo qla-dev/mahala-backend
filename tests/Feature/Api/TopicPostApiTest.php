@@ -168,6 +168,26 @@ class TopicPostApiTest extends TestCase
             ->assertJsonFragment(['id' => $firstPost->id]);
     }
 
+    public function test_general_channel_post_inherits_color_without_topic_record(): void
+    {
+        $post = \App\Models\Post::query()->create([
+            'channel_id' => 'posao-10871',
+            'mahala_id' => '10871',
+            'content' => 'General posao post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $this->getJson('/api/feed?mahala_ids=10871')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $post->id,
+                'channel_id' => 'posao-10871',
+                'color_hex' => '#06b6d4',
+            ]);
+    }
+
     public function test_it_lists_topics_for_current_mahalas(): void
     {
         $firstMahala = $this->createMahala();

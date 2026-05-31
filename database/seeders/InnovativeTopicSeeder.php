@@ -25,20 +25,6 @@ class InnovativeTopicSeeder extends Seeder
     {
         $topics = [
             [
-                'mahala_id' => self::SARAJEVO_TOPIC_SCOPE_ID,
-                'name' => 'glavna',
-                'slug' => 'glavna',
-                'description' => 'Glavni lokalni tok za sve oko tebe.',
-                'color_hex' => '#7c3aed',
-            ],
-            [
-                'mahala_id' => self::NOVI_GRAD_SARAJEVO_POLYGON_ID,
-                'name' => 'posao',
-                'slug' => 'posao',
-                'description' => 'Poslovi, smjene, preporuke i lokalne prilike za rad.',
-                'color_hex' => '#06b6d4',
-            ],
-            [
                 'mahala_id' => self::NOVI_GRAD_SARAJEVO_POLYGON_ID,
                 'name' => 'Kvart ideje',
                 'slug' => 'novi-grad-kvart-ideje',
