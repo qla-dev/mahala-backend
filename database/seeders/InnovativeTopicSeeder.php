@@ -26,17 +26,17 @@ class InnovativeTopicSeeder extends Seeder
         $topics = [
             [
                 'mahala_id' => self::SARAJEVO_TOPIC_SCOPE_ID,
-                'name' => 'Sarajevo servis',
-                'slug' => 'sarajevo-servis',
-                'description' => 'Gradske dojave za saobraćaj, kvarove, radove i korisne info kroz Sarajevo.',
+                'name' => 'glavna',
+                'slug' => 'glavna',
+                'description' => 'Glavni lokalni tok za sve oko tebe.',
                 'color_hex' => '#7c3aed',
             ],
             [
                 'mahala_id' => self::NOVI_GRAD_SARAJEVO_POLYGON_ID,
-                'name' => 'Parking patrola',
-                'slug' => 'novi-grad-parking-patrola',
-                'description' => 'Slobodna mjesta, blokirani prolazi i brze dojave oko parkinga.',
-                'color_hex' => '#f97316',
+                'name' => 'posao',
+                'slug' => 'posao',
+                'description' => 'Poslovi, smjene, preporuke i lokalne prilike za rad.',
+                'color_hex' => '#06b6d4',
             ],
             [
                 'mahala_id' => self::NOVI_GRAD_SARAJEVO_POLYGON_ID,

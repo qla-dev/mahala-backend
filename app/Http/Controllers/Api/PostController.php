@@ -202,7 +202,6 @@ class PostController extends Controller
             'author_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
-            'color_hex' => [$required, 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'image_uri' => ['sometimes', 'nullable', 'string'],
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
@@ -212,12 +211,10 @@ class PostController extends Controller
 
     private function buildAttributes(array $validated, ?Post $post = null): array
     {
-        $topic = isset($validated['channel_id'])
-            ? Topic::query()
-                ->whereKey($validated['channel_id'])
-                ->orWhere('slug', $validated['channel_id'])
-                ->first()
-            : null;
+        $topic = $this->resolveTopic(
+            $validated['channel_id'] ?? $post?->channel_id,
+            $validated['mahala_id'] ?? $post?->mahala_id,
+        );
 
         return [
             'channel_id' => $validated['channel_id'] ?? $post?->channel_id,
@@ -228,7 +225,6 @@ class PostController extends Controller
                 ? $validated['mahala_id']
                 : $post?->mahala_id ?? $topic?->mahala_id,
             'content' => array_key_exists('content', $validated) ? $validated['content'] : $post?->content,
-            'color_hex' => $validated['color_hex'] ?? $post?->color_hex,
             'image_uri' => array_key_exists('image_uri', $validated) ? $validated['image_uri'] : $post?->image_uri,
             'is_anonymous' => $validated['is_anonymous'] ?? $post?->is_anonymous ?? true,
             'status' => $validated['status'] ?? $post?->status ?? 0,
@@ -264,13 +260,15 @@ class PostController extends Controller
 
     private function formatPost(Post $post): array
     {
+        $topic = $this->resolveTopic($post->channel_id, $post->mahala_id);
+
         return [
             'id' => $post->id,
             'channel_id' => $post->channel_id,
             'author_user_id' => $post->author_user_id,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
-            'color_hex' => $post->color_hex,
+            'color_hex' => $topic?->color_hex ?? '#7c3aed',
             'image_uri' => $post->image_uri,
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
@@ -278,5 +276,31 @@ class PostController extends Controller
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
         ];
+    }
+
+    private function resolveTopic(?string $channelId, ?string $mahalaId = null): ?Topic
+    {
+        if (!$channelId) {
+            return null;
+        }
+
+        if ($mahalaId) {
+            $suffix = "-{$mahalaId}";
+            $slug = str_ends_with($channelId, $suffix)
+                ? substr($channelId, 0, -strlen($suffix))
+                : $channelId;
+
+            return Topic::query()
+                ->where('mahala_id', $mahalaId)
+                ->where('slug', $slug)
+                ->first();
+        }
+
+        return Topic::query()
+            ->get()
+            ->first(
+                fn (Topic $topic) => "{$topic->slug}-{$topic->mahala_id}" === $channelId
+                    || $topic->slug === $channelId,
+            );
     }
 }

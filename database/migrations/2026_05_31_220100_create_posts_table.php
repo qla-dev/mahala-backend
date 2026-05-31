@@ -14,7 +14,6 @@ return new class extends Migration
             $table->foreignId('author_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('mahala_id')->nullable();
             $table->text('content')->nullable();
-            $table->char('color_hex', 7);
             $table->text('image_uri')->nullable();
             $table->boolean('is_anonymous')->default(true);
             $table->integer('status')->default(0);

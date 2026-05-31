@@ -17,7 +17,6 @@ class Post extends Model
         'author_user_id',
         'mahala_id',
         'content',
-        'color_hex',
         'image_uri',
         'is_anonymous',
         'status',
