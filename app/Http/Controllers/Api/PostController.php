@@ -148,7 +148,7 @@ class PostController extends Controller
             'id' => ['prohibited'],
             'channel_id' => [$required, 'integer', Rule::exists('topics', 'id')],
             'author_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
-            'mahala_id' => ['sometimes', 'nullable', 'string', Rule::exists('mahalas', 'id')],
+            'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
             'color_hex' => [$required, 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'image_uri' => ['sometimes', 'nullable', 'string'],

@@ -14,6 +14,20 @@ use Illuminate\Validation\ValidationException;
 
 class TopicController extends Controller
 {
+    private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
+
+    private const SARAJEVO_POLYGON_IDS = [
+        '10863',
+        '11584',
+        '10847',
+        '11550',
+        '11568',
+        '10839',
+        '10871',
+        '10928',
+        '11592',
+    ];
+
     public function currentMahalas(Request $request)
     {
         try {
@@ -22,15 +36,16 @@ class TopicController extends Controller
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
+            $topicScopeIds = $this->withParentTopicScopes($mahalaIds);
 
-            if ($mahalaIds === []) {
+            if ($topicScopeIds === []) {
                 return response()->json([
                     'data' => [],
                 ], 200);
             }
 
             $topics = Topic::query()
-                ->whereIn('mahala_id', $mahalaIds)
+                ->whereIn('mahala_id', $topicScopeIds)
                 ->orderBy('is_system', 'desc')
                 ->orderBy('created_at')
                 ->get()
@@ -180,7 +195,7 @@ class TopicController extends Controller
 
         return [
             'id' => ['prohibited'],
-            'mahala_id' => [$required, 'string', Rule::exists('mahalas', 'id')],
+            'mahala_id' => [$required, 'string', 'max:255'],
             'created_by_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'name' => [$required, 'string', 'max:255'],
             'slug' => array_filter([
@@ -256,6 +271,20 @@ class TopicController extends Controller
         return collect($items)
             ->map(fn ($item) => trim((string) $item))
             ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function withParentTopicScopes(array $mahalaIds): array
+    {
+        $scopeIds = collect($mahalaIds);
+
+        if ($scopeIds->intersect(self::SARAJEVO_POLYGON_IDS)->isNotEmpty()) {
+            $scopeIds->push(self::SARAJEVO_TOPIC_SCOPE_ID);
+        }
+
+        return $scopeIds
             ->unique()
             ->values()
             ->all();

@@ -167,6 +167,58 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.1.mahala_id', $secondMahala->id);
     }
 
+    public function test_it_creates_topic_for_external_polygon_scope(): void
+    {
+        $response = $this->postJson('/api/topics', [
+            'mahala_id' => '10871',
+            'name' => 'Parking patrola',
+            'description' => 'Slobodna mjesta, blokirani prolazi i brze dojave oko parkinga.',
+            'color_hex' => '#f97316',
+            'status' => 1,
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.mahala_id', '10871')
+            ->assertJsonPath('data.slug', 'parking-patrola');
+
+        $this->assertDatabaseHas('topics', [
+            'mahala_id' => '10871',
+            'slug' => 'parking-patrola',
+        ]);
+    }
+
+    public function test_it_includes_sarajevo_scope_topics_for_sarajevo_polygons(): void
+    {
+        Topic::query()->create([
+            'mahala_id' => '10871',
+            'name' => 'Parking patrola',
+            'slug' => 'novi-grad-parking-patrola',
+            'description' => 'Slobodna mjesta, blokirani prolazi i brze dojave oko parkinga.',
+            'color_hex' => '#f97316',
+        ]);
+        Topic::query()->create([
+            'mahala_id' => 'sarajevo-71000',
+            'name' => 'Sarajevo servis',
+            'slug' => 'sarajevo-servis',
+            'description' => 'Gradske dojave za saobraćaj, kvarove, radove i korisne info kroz Sarajevo.',
+            'color_hex' => '#7c3aed',
+        ]);
+        Topic::query()->create([
+            'mahala_id' => 'user-outside-mahala',
+            'name' => 'Outside',
+            'slug' => 'outside-sarajevo-scope',
+            'description' => 'Outside topic',
+            'color_hex' => '#06b6d4',
+        ]);
+
+        $this->getJson('/api/topics/current-mahalas?mahala_ids=10871')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.mahala_id', '10871')
+            ->assertJsonPath('data.1.mahala_id', 'sarajevo-71000');
+    }
+
     private function createMahala(): Mahala
     {
         return Mahala::query()->create([
