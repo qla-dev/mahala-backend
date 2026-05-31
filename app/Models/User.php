@@ -53,4 +53,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Mahala::class, 'owner_id');
     }
+
+    public function topics(): HasMany
+    {
+        return $this->hasMany(Topic::class, 'created_by_user_id');
+    }
+
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class, 'author_user_id');
+    }
 }
