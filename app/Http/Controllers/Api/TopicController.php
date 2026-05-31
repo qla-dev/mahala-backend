@@ -28,6 +28,20 @@ class TopicController extends Controller
         '11592',
     ];
 
+    private const RESERVED_GENERAL_TOPIC_SLUGS = [
+        'glavna',
+        'eventi',
+        'posao',
+        'ljubimci',
+        'izgubljeno-i-nadjeno',
+        'politika',
+        'nocna-smjena',
+        'gaming',
+        'sport',
+        'prodajem-i-kupujem',
+        'dating',
+    ];
+
     public function currentMahalas(Request $request)
     {
         try {
@@ -203,6 +217,7 @@ class TopicController extends Controller
                 'string',
                 'max:255',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::notIn(self::RESERVED_GENERAL_TOPIC_SLUGS),
                 Rule::unique('topics', 'slug')->ignore($topic?->getKey(), 'id'),
             ]),
             'description' => [$required, 'string'],
@@ -256,7 +271,10 @@ class TopicController extends Controller
         $slug = $baseSlug;
         $suffix = 2;
 
-        while (Topic::query()->where('slug', $slug)->exists()) {
+        while (
+            in_array($slug, self::RESERVED_GENERAL_TOPIC_SLUGS, true) ||
+            Topic::query()->where('slug', $slug)->exists()
+        ) {
             $slug = "{$baseSlug}-{$suffix}";
             $suffix++;
         }

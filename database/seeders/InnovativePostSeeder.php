@@ -72,15 +72,14 @@ class InnovativePostSeeder extends Seeder
         ];
 
         foreach ($posts as $post) {
-            $channelId = "{$post['topic_slug']}-{$post['mahala_id']}";
-
             Post::query()->updateOrCreate(
                 [
-                    'channel_id' => $channelId,
+                    'topic_id' => $post['topic_slug'],
+                    'mahala_id' => $post['mahala_id'],
                     'content' => $post['content'],
                 ],
                 [
-                    'channel_id' => $channelId,
+                    'topic_id' => $post['topic_slug'],
                     'author_user_id' => null,
                     'mahala_id' => $post['mahala_id'],
                     'content' => $post['content'],

@@ -49,6 +49,6 @@ class Topic extends Model
     {
         return $this
             ->hasMany(Post::class, 'mahala_id', 'mahala_id')
-            ->where('channel_id', "{$this->slug}-{$this->mahala_id}");
+            ->where('topic_id', $this->slug);
     }
 }

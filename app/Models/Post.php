@@ -13,7 +13,7 @@ class Post extends Model
     protected $table = 'posts';
 
     protected $fillable = [
-        'channel_id',
+        'topic_id',
         'author_user_id',
         'mahala_id',
         'content',

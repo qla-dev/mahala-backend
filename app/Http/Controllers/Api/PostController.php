@@ -84,7 +84,11 @@ class PostController extends Controller
     {
         try {
             $posts = Post::query()
-                ->when($request->filled('channel_id'), fn ($query) => $query->where('channel_id', $request->query('channel_id')))
+                ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
+                ->when($request->filled('channel_id'), fn ($query) => $query->where(
+                    'topic_id',
+                    $this->normalizeTopicId($request->query('channel_id'), $request->query('mahala_id')),
+                ))
                 ->when($request->filled('mahala_id'), fn ($query) => $query->where('mahala_id', $request->query('mahala_id')))
                 ->latest()
                 ->get()
@@ -209,10 +213,12 @@ class PostController extends Controller
     private function rules(bool $isUpdate = false): array
     {
         $required = $isUpdate ? 'sometimes' : 'required';
+        $topicRequired = $isUpdate ? 'sometimes' : 'required_without:channel_id';
 
         return [
             'id' => ['prohibited'],
-            'channel_id' => [$required, 'string', 'max:255'],
+            'topic_id' => [$topicRequired, 'string', 'max:255'],
+            'channel_id' => ['sometimes', 'string', 'max:255'],
             'author_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
@@ -225,13 +231,18 @@ class PostController extends Controller
 
     private function buildAttributes(array $validated, ?Post $post = null): array
     {
+        $mahalaId = $validated['mahala_id'] ?? $post?->mahala_id;
+        $topicId = $this->normalizeTopicId(
+            $validated['topic_id'] ?? $validated['channel_id'] ?? $post?->topic_id,
+            $mahalaId,
+        );
         $topic = $this->resolveTopic(
-            $validated['channel_id'] ?? $post?->channel_id,
-            $validated['mahala_id'] ?? $post?->mahala_id,
+            $topicId,
+            $mahalaId,
         );
 
         return [
-            'channel_id' => $validated['channel_id'] ?? $post?->channel_id,
+            'topic_id' => $topicId,
             'author_user_id' => array_key_exists('author_user_id', $validated)
                 ? $validated['author_user_id']
                 : $post?->author_user_id,
@@ -274,15 +285,15 @@ class PostController extends Controller
 
     private function formatPost(Post $post): array
     {
-        $topic = $this->resolveTopic($post->channel_id, $post->mahala_id);
+        $topic = $this->resolveTopic($post->topic_id, $post->mahala_id);
 
         return [
             'id' => $post->id,
-            'channel_id' => $post->channel_id,
+            'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
-            'color_hex' => $topic?->color_hex ?? $this->resolveGeneralTopicColor($post->channel_id, $post->mahala_id),
+            'color_hex' => $topic?->color_hex ?? $this->resolveGeneralTopicColor($post->topic_id),
             'image_uri' => $post->image_uri,
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
@@ -292,53 +303,43 @@ class PostController extends Controller
         ];
     }
 
-    private function resolveTopic(?string $channelId, ?string $mahalaId = null): ?Topic
+    private function resolveTopic(?string $topicId, ?string $mahalaId = null): ?Topic
     {
-        if (!$channelId) {
+        if (!$topicId) {
             return null;
         }
 
         if ($mahalaId) {
-            $suffix = "-{$mahalaId}";
-            $slug = str_ends_with($channelId, $suffix)
-                ? substr($channelId, 0, -strlen($suffix))
-                : $channelId;
-
             return Topic::query()
                 ->where('mahala_id', $mahalaId)
-                ->where('slug', $slug)
+                ->where('slug', $topicId)
                 ->first();
         }
 
         return Topic::query()
-            ->get()
-            ->first(
-                fn (Topic $topic) => "{$topic->slug}-{$topic->mahala_id}" === $channelId
-                    || $topic->slug === $channelId,
-            );
+            ->where('slug', $topicId)
+            ->first();
     }
 
-    private function resolveGeneralTopicColor(?string $channelId, ?string $mahalaId = null): string
+    private function resolveGeneralTopicColor(?string $topicId): string
     {
-        $slug = $this->resolveChannelSlug($channelId, $mahalaId);
-
-        return self::GENERAL_TOPIC_COLORS[$slug] ?? '#7c3aed';
+        return self::GENERAL_TOPIC_COLORS[$topicId ?: 'glavna'] ?? '#7c3aed';
     }
 
-    private function resolveChannelSlug(?string $channelId, ?string $mahalaId = null): string
+    private function normalizeTopicId(?string $topicId, ?string $mahalaId = null): ?string
     {
-        if (!$channelId) {
-            return 'glavna';
+        if (!$topicId) {
+            return $topicId;
         }
 
         if ($mahalaId) {
             $suffix = "-{$mahalaId}";
 
-            if (str_ends_with($channelId, $suffix)) {
-                return substr($channelId, 0, -strlen($suffix));
+            if (str_ends_with($topicId, $suffix)) {
+                return substr($topicId, 0, -strlen($suffix));
             }
         }
 
-        return $channelId;
+        return $topicId;
     }
 }

@@ -20,8 +20,8 @@ class TopicPostApiTest extends TestCase
         $response = $this->postJson('/api/topics', [
             'mahala_id' => $mahala->id,
             'created_by_user_id' => $user->id,
-            'name' => 'Prodajem i kupujem',
-            'description' => 'Kupovina, prodaja, razmjena i lokalne ponude',
+            'name' => 'Servisne dojave',
+            'description' => 'Kvarovi, radovi i korisne servisne informacije',
             'color_hex' => '#2dd4bf',
             'is_premium' => true,
             'is_system' => false,
@@ -32,8 +32,8 @@ class TopicPostApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.mahala_id', $mahala->id)
             ->assertJsonPath('data.created_by_user_id', $user->id)
-            ->assertJsonPath('data.name', 'Prodajem i kupujem')
-            ->assertJsonPath('data.slug', 'prodajem-i-kupujem')
+            ->assertJsonPath('data.name', 'Servisne dojave')
+            ->assertJsonPath('data.slug', 'servisne-dojave')
             ->assertJsonPath('data.color_hex', '#2dd4bf')
             ->assertJsonPath('data.is_premium', true)
             ->assertJsonPath('data.is_system', false)
@@ -42,7 +42,7 @@ class TopicPostApiTest extends TestCase
         $this->assertDatabaseHas('topics', [
             'id' => $response->json('data.id'),
             'mahala_id' => $mahala->id,
-            'slug' => 'prodajem-i-kupujem',
+            'slug' => 'servisne-dojave',
         ]);
 
         $this->getJson('/api/topics')
@@ -68,7 +68,7 @@ class TopicPostApiTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/posts', [
-            'channel_id' => 'glavna-' . $mahala->id,
+            'topic_id' => 'glavna',
             'author_user_id' => $user->id,
             'mahala_id' => $mahala->id,
             'content' => 'Ima li ko za kafu?',
@@ -80,7 +80,7 @@ class TopicPostApiTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath('data.channel_id', 'glavna-' . $mahala->id)
+            ->assertJsonPath('data.topic_id', 'glavna')
             ->assertJsonPath('data.author_user_id', $user->id)
             ->assertJsonPath('data.mahala_id', $mahala->id)
             ->assertJsonPath('data.content', 'Ima li ko za kafu?')
@@ -91,7 +91,7 @@ class TopicPostApiTest extends TestCase
 
         $this->assertDatabaseHas('posts', [
             'id' => $response->json('data.id'),
-            'channel_id' => 'glavna-' . $mahala->id,
+            'topic_id' => 'glavna',
             'mahala_id' => $mahala->id,
         ]);
 
@@ -138,7 +138,7 @@ class TopicPostApiTest extends TestCase
         ]);
 
         $firstPost = \App\Models\Post::query()->create([
-            'channel_id' => 'glavna-' . $firstMahala->id,
+            'topic_id' => 'glavna',
             'mahala_id' => $firstMahala->id,
             'content' => 'First feed post',
             'is_anonymous' => true,
@@ -146,7 +146,7 @@ class TopicPostApiTest extends TestCase
             'hidden' => false,
         ]);
         \App\Models\Post::query()->create([
-            'channel_id' => 'glavna-' . $secondMahala->id,
+            'topic_id' => 'glavna',
             'mahala_id' => $secondMahala->id,
             'content' => 'Second feed post',
             'is_anonymous' => true,
@@ -154,7 +154,7 @@ class TopicPostApiTest extends TestCase
             'hidden' => false,
         ]);
         \App\Models\Post::query()->create([
-            'channel_id' => 'glavna-' . $outsideMahala->id,
+            'topic_id' => 'glavna',
             'mahala_id' => $outsideMahala->id,
             'content' => 'Outside feed post',
             'is_anonymous' => true,
@@ -168,10 +168,10 @@ class TopicPostApiTest extends TestCase
             ->assertJsonFragment(['id' => $firstPost->id]);
     }
 
-    public function test_general_channel_post_inherits_color_without_topic_record(): void
+    public function test_general_topic_post_inherits_color_without_topic_record(): void
     {
         $post = \App\Models\Post::query()->create([
-            'channel_id' => 'posao-10871',
+            'topic_id' => 'posao',
             'mahala_id' => '10871',
             'content' => 'General posao post',
             'is_anonymous' => true,
@@ -183,7 +183,7 @@ class TopicPostApiTest extends TestCase
             ->assertOk()
             ->assertJsonFragment([
                 'id' => $post->id,
-                'channel_id' => 'posao-10871',
+                'topic_id' => 'posao',
                 'color_hex' => '#06b6d4',
             ]);
     }
@@ -272,6 +272,27 @@ class TopicPostApiTest extends TestCase
         $this->assertDatabaseHas('topics', [
             'mahala_id' => '10871',
             'slug' => 'parking-patrola',
+        ]);
+    }
+
+    public function test_user_topic_slug_does_not_collide_with_general_topic_slug(): void
+    {
+        $response = $this->postJson('/api/topics', [
+            'mahala_id' => '10871',
+            'name' => 'posao',
+            'description' => 'Lokalni razgovori oko poslova.',
+            'color_hex' => '#06b6d4',
+            'status' => 1,
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.mahala_id', '10871')
+            ->assertJsonPath('data.slug', 'posao-2');
+
+        $this->assertDatabaseHas('topics', [
+            'mahala_id' => '10871',
+            'slug' => 'posao-2',
         ]);
     }
 
