@@ -101,6 +101,72 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.0.id', $response->json('data.id'));
     }
 
+    public function test_it_lists_topics_for_current_mahalas(): void
+    {
+        $firstMahala = $this->createMahala();
+        $secondMahala = Mahala::query()->create([
+            'id' => 'user-second-mahala',
+            'name' => 'Second Mahala',
+            'slug' => 'second-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.86,
+            'longitude' => 18.43,
+            'coordinates' => [
+                ['latitude' => 43.86, 'longitude' => 18.43],
+                ['latitude' => 43.87, 'longitude' => 18.44],
+                ['latitude' => 43.85, 'longitude' => 18.45],
+            ],
+            'holes' => [],
+        ]);
+        $outsideMahala = Mahala::query()->create([
+            'id' => 'user-outside-mahala',
+            'name' => 'Outside Mahala',
+            'slug' => 'outside-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.80,
+            'longitude' => 18.40,
+            'coordinates' => [
+                ['latitude' => 43.80, 'longitude' => 18.40],
+                ['latitude' => 43.81, 'longitude' => 18.41],
+                ['latitude' => 43.79, 'longitude' => 18.42],
+            ],
+            'holes' => [],
+        ]);
+
+        Topic::query()->create([
+            'mahala_id' => $firstMahala->id,
+            'name' => 'Glavna',
+            'slug' => 'glavna',
+            'description' => 'Glavni lokalni tok za sve oko tebe',
+            'color_hex' => '#7c3aed',
+            'is_system' => true,
+        ]);
+        Topic::query()->create([
+            'mahala_id' => $secondMahala->id,
+            'name' => 'Eventi',
+            'slug' => 'eventi',
+            'description' => 'Dešavanja, okupljanja, svirke i lokalni događaji',
+            'color_hex' => '#ec4899',
+        ]);
+        Topic::query()->create([
+            'mahala_id' => $outsideMahala->id,
+            'name' => 'Outside',
+            'slug' => 'outside',
+            'description' => 'Outside topic',
+            'color_hex' => '#06b6d4',
+        ]);
+
+        $this->getJson("/api/topics/current-mahalas?mahala_ids={$firstMahala->id},{$secondMahala->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.mahala_id', $firstMahala->id)
+            ->assertJsonPath('data.1.mahala_id', $secondMahala->id);
+    }
+
     private function createMahala(): Mahala
     {
         return Mahala::query()->create([

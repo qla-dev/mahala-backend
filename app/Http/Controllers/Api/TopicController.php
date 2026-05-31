@@ -14,6 +14,41 @@ use Illuminate\Validation\ValidationException;
 
 class TopicController extends Controller
 {
+    public function currentMahalas(Request $request)
+    {
+        try {
+            $payload = $request->validate([
+                'mahala_ids' => ['required'],
+            ]);
+
+            $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
+
+            if ($mahalaIds === []) {
+                return response()->json([
+                    'data' => [],
+                ], 200);
+            }
+
+            $topics = Topic::query()
+                ->whereIn('mahala_id', $mahalaIds)
+                ->orderBy('is_system', 'desc')
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn (Topic $topic) => $this->formatTopic($topic));
+
+            return response()->json([
+                'data' => $topics,
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred while retrieving topics for current mahalas.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function index(Request $request)
     {
         try {
@@ -212,5 +247,17 @@ class TopicController extends Controller
         }
 
         return $slug;
+    }
+
+    private function normalizeMahalaIds(mixed $value): array
+    {
+        $items = is_array($value) ? $value : explode(',', (string) $value);
+
+        return collect($items)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }
