@@ -47,6 +47,8 @@ class Topic extends Model
 
     public function posts(): HasMany
     {
-        return $this->hasMany(Post::class, 'channel_id');
+        return $this
+            ->hasMany(Post::class, 'mahala_id', 'mahala_id')
+            ->where('channel_id', "{$this->slug}-{$this->mahala_id}");
     }
 }

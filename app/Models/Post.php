@@ -28,16 +28,10 @@ class Post extends Model
     {
         return [
             'author_user_id' => 'integer',
-            'channel_id' => 'integer',
             'is_anonymous' => 'boolean',
             'status' => 'integer',
             'hidden' => 'boolean',
         ];
-    }
-
-    public function channel(): BelongsTo
-    {
-        return $this->belongsTo(Topic::class, 'channel_id');
     }
 
     public function author(): BelongsTo

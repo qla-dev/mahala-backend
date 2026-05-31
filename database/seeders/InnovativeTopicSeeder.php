@@ -47,7 +47,7 @@ class InnovativeTopicSeeder extends Seeder
             ],
             [
                 'mahala_id' => self::DOBRINJA_MAHALA_ID,
-                'name' => 'Lift i ulaz',
+                'name' => 'lift_i_ulaz',
                 'slug' => 'dobrinja-lift-i-ulaz',
                 'description' => 'Kvarovi, majstori, domari i sitne zgradske akcije.',
                 'color_hex' => '#64748b',

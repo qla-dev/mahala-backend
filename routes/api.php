@@ -11,4 +11,5 @@ Route::apiResource('mahalas', MahalaController::class);
 Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas']);
 Route::apiResource('topics', TopicController::class);
 
+Route::get('feed', [PostController::class, 'feed']);
 Route::apiResource('posts', PostController::class);

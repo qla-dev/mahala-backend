@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             MahalaSeeder::class,
             InnovativeTopicSeeder::class,
+            InnovativePostSeeder::class,
         ]);
     }
 }

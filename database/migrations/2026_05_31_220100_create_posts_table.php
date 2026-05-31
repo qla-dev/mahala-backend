@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('channel_id')->constrained('topics')->cascadeOnDelete();
+            $table->string('channel_id');
             $table->foreignId('author_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('mahala_id')->nullable();
             $table->text('content')->nullable();
@@ -22,6 +22,7 @@ return new class extends Migration
             $table->boolean('hidden')->nullable();
 
             $table->foreign('mahala_id')->references('id')->on('mahalas')->nullOnDelete();
+            $table->index('channel_id');
         });
     }
 

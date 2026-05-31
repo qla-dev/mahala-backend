@@ -14,6 +14,58 @@ use Illuminate\Validation\ValidationException;
 
 class PostController extends Controller
 {
+    private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
+
+    private const SARAJEVO_POLYGON_IDS = [
+        '10863',
+        '11584',
+        '10847',
+        '11550',
+        '11568',
+        '10839',
+        '10871',
+        '10928',
+        '11592',
+    ];
+
+    public function feed(Request $request)
+    {
+        try {
+            $payload = $request->validate([
+                'mahala_ids' => ['required'],
+            ]);
+
+            $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
+            $feedScopeIds = $this->withParentTopicScopes($mahalaIds);
+
+            if ($feedScopeIds === []) {
+                return response()->json([
+                    'data' => [],
+                ], 200);
+            }
+
+            $posts = Post::query()
+                ->whereIn('mahala_id', $feedScopeIds)
+                ->where(function ($query) {
+                    $query->whereNull('hidden')->orWhere('hidden', false);
+                })
+                ->latest()
+                ->get()
+                ->map(fn (Post $post) => $this->formatPost($post));
+
+            return response()->json([
+                'data' => $posts,
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred while retrieving feed posts.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function index(Request $request)
     {
         try {
@@ -146,7 +198,7 @@ class PostController extends Controller
 
         return [
             'id' => ['prohibited'],
-            'channel_id' => [$required, 'integer', Rule::exists('topics', 'id')],
+            'channel_id' => [$required, 'string', 'max:255'],
             'author_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
@@ -161,7 +213,10 @@ class PostController extends Controller
     private function buildAttributes(array $validated, ?Post $post = null): array
     {
         $topic = isset($validated['channel_id'])
-            ? Topic::query()->find($validated['channel_id'])
+            ? Topic::query()
+                ->whereKey($validated['channel_id'])
+                ->orWhere('slug', $validated['channel_id'])
+                ->first()
             : null;
 
         return [
@@ -179,6 +234,32 @@ class PostController extends Controller
             'status' => $validated['status'] ?? $post?->status ?? 0,
             'hidden' => array_key_exists('hidden', $validated) ? $validated['hidden'] : $post?->hidden,
         ];
+    }
+
+    private function normalizeMahalaIds(mixed $value): array
+    {
+        $items = is_array($value) ? $value : explode(',', (string) $value);
+
+        return collect($items)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function withParentTopicScopes(array $mahalaIds): array
+    {
+        $scopeIds = collect($mahalaIds);
+
+        if ($scopeIds->intersect(self::SARAJEVO_POLYGON_IDS)->isNotEmpty()) {
+            $scopeIds->push(self::SARAJEVO_TOPIC_SCOPE_ID);
+        }
+
+        return $scopeIds
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function formatPost(Post $post): array

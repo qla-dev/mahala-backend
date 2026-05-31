@@ -68,8 +68,9 @@ class TopicPostApiTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/posts', [
-            'channel_id' => $topic->id,
+            'channel_id' => 'glavna-' . $mahala->id,
             'author_user_id' => $user->id,
+            'mahala_id' => $mahala->id,
             'content' => 'Ima li ko za kafu?',
             'color_hex' => '#7c3aed',
             'image_uri' => null,
@@ -80,7 +81,7 @@ class TopicPostApiTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath('data.channel_id', $topic->id)
+            ->assertJsonPath('data.channel_id', 'glavna-' . $mahala->id)
             ->assertJsonPath('data.author_user_id', $user->id)
             ->assertJsonPath('data.mahala_id', $mahala->id)
             ->assertJsonPath('data.content', 'Ima li ko za kafu?')
@@ -91,7 +92,7 @@ class TopicPostApiTest extends TestCase
 
         $this->assertDatabaseHas('posts', [
             'id' => $response->json('data.id'),
-            'channel_id' => $topic->id,
+            'channel_id' => 'glavna-' . $mahala->id,
             'mahala_id' => $mahala->id,
         ]);
 
@@ -99,6 +100,76 @@ class TopicPostApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $response->json('data.id'));
+    }
+
+    public function test_it_lists_feed_posts_for_current_mahalas(): void
+    {
+        $firstMahala = $this->createMahala();
+        $secondMahala = Mahala::query()->create([
+            'id' => 'user-second-mahala',
+            'name' => 'Second Mahala',
+            'slug' => 'second-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.86,
+            'longitude' => 18.43,
+            'coordinates' => [
+                ['latitude' => 43.86, 'longitude' => 18.43],
+                ['latitude' => 43.87, 'longitude' => 18.44],
+                ['latitude' => 43.85, 'longitude' => 18.45],
+            ],
+            'holes' => [],
+        ]);
+        $outsideMahala = Mahala::query()->create([
+            'id' => 'user-outside-mahala',
+            'name' => 'Outside Mahala',
+            'slug' => 'outside-mahala',
+            'status' => 'published',
+            'privacy' => 0,
+            'level' => 2,
+            'latitude' => 43.80,
+            'longitude' => 18.40,
+            'coordinates' => [
+                ['latitude' => 43.80, 'longitude' => 18.40],
+                ['latitude' => 43.81, 'longitude' => 18.41],
+                ['latitude' => 43.79, 'longitude' => 18.42],
+            ],
+            'holes' => [],
+        ]);
+
+        $firstPost = \App\Models\Post::query()->create([
+            'channel_id' => 'glavna-' . $firstMahala->id,
+            'mahala_id' => $firstMahala->id,
+            'content' => 'First feed post',
+            'color_hex' => '#7c3aed',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+        \App\Models\Post::query()->create([
+            'channel_id' => 'glavna-' . $secondMahala->id,
+            'mahala_id' => $secondMahala->id,
+            'content' => 'Second feed post',
+            'color_hex' => '#06b6d4',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+        \App\Models\Post::query()->create([
+            'channel_id' => 'glavna-' . $outsideMahala->id,
+            'mahala_id' => $outsideMahala->id,
+            'content' => 'Outside feed post',
+            'color_hex' => '#ef4444',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $this->getJson("/api/feed?mahala_ids={$firstMahala->id},{$secondMahala->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['id' => $firstPost->id]);
     }
 
     public function test_it_lists_topics_for_current_mahalas(): void
