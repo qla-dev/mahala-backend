@@ -47,28 +47,41 @@ class PostController extends Controller
         try {
             $payload = $request->validate([
                 'mahala_ids' => ['required'],
+                'page' => ['sometimes', 'integer', 'min:1'],
+                'limit' => ['sometimes', 'integer', 'min:1', 'max:50'],
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
             $feedScopeIds = $this->withParentTopicScopes($mahalaIds);
+            $page = (int) ($payload['page'] ?? 1);
+            $limit = (int) ($payload['limit'] ?? 10);
 
             if ($feedScopeIds === []) {
                 return response()->json([
                     'data' => [],
+                    'meta' => $this->paginationMeta(0, $page, $limit),
                 ], 200);
             }
 
-            $posts = Post::query()
+            $paginatedPosts = Post::query()
                 ->whereIn('mahala_id', $feedScopeIds)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
                 })
                 ->latest()
-                ->get()
+                ->paginate($limit, ['*'], 'page', $page);
+
+            $posts = $paginatedPosts
+                ->getCollection()
                 ->map(fn (Post $post) => $this->formatPost($post));
 
             return response()->json([
                 'data' => $posts,
+                'meta' => $this->paginationMeta(
+                    $paginatedPosts->total(),
+                    $paginatedPosts->currentPage(),
+                    $paginatedPosts->perPage(),
+                ),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
@@ -267,6 +280,20 @@ class PostController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function paginationMeta(int $total, int $page, int $limit): array
+    {
+        $lastPage = $limit > 0 ? (int) ceil($total / $limit) : 1;
+        $lastPage = max(1, $lastPage);
+
+        return [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'has_more' => $page < $lastPage,
+        ];
     }
 
     private function withParentTopicScopes(array $mahalaIds): array

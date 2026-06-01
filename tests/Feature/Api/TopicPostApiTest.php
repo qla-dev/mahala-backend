@@ -168,6 +168,37 @@ class TopicPostApiTest extends TestCase
             ->assertJsonFragment(['id' => $firstPost->id]);
     }
 
+    public function test_it_paginates_feed_posts_for_current_mahalas(): void
+    {
+        $mahala = $this->createMahala();
+
+        foreach (range(1, 12) as $index) {
+            \App\Models\Post::query()->create([
+                'topic_id' => 'glavna',
+                'mahala_id' => $mahala->id,
+                'content' => "Feed post {$index}",
+                'is_anonymous' => true,
+                'status' => 1,
+                'hidden' => false,
+            ]);
+        }
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}&page=1&limit=10")
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.page', 1)
+            ->assertJsonPath('meta.limit', 10)
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.has_more', true);
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}&page=2&limit=10")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.page', 2)
+            ->assertJsonPath('meta.has_more', false);
+    }
+
     public function test_general_topic_post_inherits_color_without_topic_record(): void
     {
         $post = \App\Models\Post::query()->create([
