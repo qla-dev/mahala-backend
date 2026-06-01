@@ -42,6 +42,20 @@ class TopicController extends Controller
         'dating',
     ];
 
+    private const DEFAULT_TOPIC_ICONS = [
+        'glavna' => 'chatbubble-ellipses',
+        'eventi' => 'calendar',
+        'posao' => 'briefcase',
+        'ljubimci' => 'paw',
+        'izgubljeno-i-nadjeno' => 'search',
+        'politika' => 'megaphone',
+        'nocna-smjena' => 'moon',
+        'gaming' => 'game-controller',
+        'sport' => 'football',
+        'prodajem-i-kupujem' => 'pricetag',
+        'dating' => 'heart',
+    ];
+
     public function currentMahalas(Request $request)
     {
         try {
@@ -221,7 +235,7 @@ class TopicController extends Controller
                 Rule::unique('topics', 'slug')->ignore($topic?->getKey(), 'id'),
             ]),
             'description' => [$required, 'string'],
-            'color_hex' => [$required, 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'icon' => ['sometimes', 'string', 'max:64', 'regex:/^[a-z0-9-]+$/'],
             'is_premium' => ['sometimes', 'boolean'],
             'is_system' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
@@ -240,7 +254,7 @@ class TopicController extends Controller
             'name' => $name,
             'slug' => $validated['slug'] ?? $topic?->slug ?? $this->resolveSlug($name),
             'description' => $validated['description'] ?? $topic?->description,
-            'color_hex' => $validated['color_hex'] ?? $topic?->color_hex,
+            'icon' => $validated['icon'] ?? $topic?->icon ?? $this->resolveTopicIcon($validated['slug'] ?? $topic?->slug ?? null),
             'is_premium' => $validated['is_premium'] ?? $topic?->is_premium ?? false,
             'is_system' => $validated['is_system'] ?? $topic?->is_system ?? false,
             'status' => $validated['status'] ?? $topic?->status ?? 0,
@@ -256,7 +270,7 @@ class TopicController extends Controller
             'name' => $topic->name,
             'slug' => $topic->slug,
             'description' => $topic->description,
-            'color_hex' => $topic->color_hex,
+            'icon' => $this->formatTopicIcon($topic),
             'is_premium' => $topic->is_premium,
             'is_system' => $topic->is_system,
             'status' => $topic->status,
@@ -280,6 +294,20 @@ class TopicController extends Controller
         }
 
         return $slug;
+    }
+
+    private function resolveTopicIcon(?string $slug): string
+    {
+        return self::DEFAULT_TOPIC_ICONS[$slug ?: 'glavna'] ?? 'chatbubble-ellipses';
+    }
+
+    private function formatTopicIcon(Topic $topic): string
+    {
+        if ($topic->is_system && (!$topic->icon || $topic->icon === 'chatbubble-ellipses')) {
+            return $this->resolveTopicIcon($topic->slug);
+        }
+
+        return $topic->icon ?: $this->resolveTopicIcon($topic->slug);
     }
 
     private function normalizeMahalaIds(mixed $value): array

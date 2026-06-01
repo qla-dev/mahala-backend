@@ -15,7 +15,6 @@ return new class extends Migration
             $table->text('name');
             $table->string('slug');
             $table->text('description');
-            $table->char('color_hex', 7);
             $table->boolean('is_premium')->default(false);
             $table->boolean('is_system')->default(false);
             $table->integer('status')->default(0);

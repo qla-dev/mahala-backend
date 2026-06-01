@@ -14,20 +14,6 @@ use Illuminate\Validation\ValidationException;
 
 class PostController extends Controller
 {
-    private const GENERAL_TOPIC_COLORS = [
-        'glavna' => '#7c3aed',
-        'eventi' => '#ec4899',
-        'posao' => '#06b6d4',
-        'ljubimci' => '#84cc16',
-        'izgubljeno-i-nadjeno' => '#fde047',
-        'politika' => '#dc2626',
-        'nocna-smjena' => '#0b0a10',
-        'gaming' => '#8b5e34',
-        'sport' => '#ef4444',
-        'prodajem-i-kupujem' => '#2dd4bf',
-        'dating' => '#ec4899',
-    ];
-
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -312,15 +298,13 @@ class PostController extends Controller
 
     private function formatPost(Post $post): array
     {
-        $topic = $this->resolveTopic($post->topic_id, $post->mahala_id);
-
         return [
             'id' => $post->id,
             'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
-            'color_hex' => $topic?->color_hex ?? $this->resolveGeneralTopicColor($post->topic_id),
+            'color_hex' => $this->resolveMahalaColor($post->mahala_id),
             'image_uri' => $post->image_uri,
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
@@ -348,9 +332,17 @@ class PostController extends Controller
             ->first();
     }
 
-    private function resolveGeneralTopicColor(?string $topicId): string
+    private function resolveMahalaColor(?string $mahalaId): string
     {
-        return self::GENERAL_TOPIC_COLORS[$topicId ?: 'glavna'] ?? '#7c3aed';
+        if ($mahalaId === self::SARAJEVO_TOPIC_SCOPE_ID) {
+            return '#8b5cf6';
+        }
+
+        if (in_array($mahalaId, self::SARAJEVO_POLYGON_IDS, true)) {
+            return '#2563eb';
+        }
+
+        return '#f59e0b';
     }
 
     private function normalizeTopicId(?string $topicId, ?string $mahalaId = null): ?string

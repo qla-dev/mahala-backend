@@ -19,7 +19,7 @@ class Topic extends Model
         'name',
         'slug',
         'description',
-        'color_hex',
+        'icon',
         'is_premium',
         'is_system',
         'status',

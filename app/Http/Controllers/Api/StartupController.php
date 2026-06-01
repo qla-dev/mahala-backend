@@ -11,20 +11,6 @@ use Illuminate\Validation\ValidationException;
 
 class StartupController extends Controller
 {
-    private const GENERAL_TOPIC_COLORS = [
-        'glavna' => '#7c3aed',
-        'eventi' => '#ec4899',
-        'posao' => '#06b6d4',
-        'ljubimci' => '#84cc16',
-        'izgubljeno-i-nadjeno' => '#fde047',
-        'politika' => '#dc2626',
-        'nocna-smjena' => '#0b0a10',
-        'gaming' => '#8b5e34',
-        'sport' => '#ef4444',
-        'prodajem-i-kupujem' => '#2dd4bf',
-        'dating' => '#ec4899',
-    ];
-
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -37,6 +23,20 @@ class StartupController extends Controller
         '10871',
         '10928',
         '11592',
+    ];
+
+    private const DEFAULT_TOPIC_ICONS = [
+        'glavna' => 'chatbubble-ellipses',
+        'eventi' => 'calendar',
+        'posao' => 'briefcase',
+        'ljubimci' => 'paw',
+        'izgubljeno-i-nadjeno' => 'search',
+        'politika' => 'megaphone',
+        'nocna-smjena' => 'moon',
+        'gaming' => 'game-controller',
+        'sport' => 'football',
+        'prodajem-i-kupujem' => 'pricetag',
+        'dating' => 'heart',
     ];
 
     public function __invoke(Request $request)
@@ -158,7 +158,7 @@ class StartupController extends Controller
             'name' => $topic->name,
             'slug' => $topic->slug,
             'description' => $topic->description,
-            'color_hex' => $topic->color_hex,
+            'icon' => $this->formatTopicIcon($topic),
             'is_premium' => $topic->is_premium,
             'is_system' => $topic->is_system,
             'status' => $topic->status,
@@ -169,15 +169,13 @@ class StartupController extends Controller
 
     private function formatPost(Post $post): array
     {
-        $topic = $this->resolveTopic($post->topic_id, $post->mahala_id);
-
         return [
             'id' => $post->id,
             'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
-            'color_hex' => $topic?->color_hex ?? $this->resolveGeneralTopicColor($post->topic_id),
+            'color_hex' => $this->resolveMahalaColor($post->mahala_id),
             'image_uri' => $post->image_uri,
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
@@ -187,26 +185,30 @@ class StartupController extends Controller
         ];
     }
 
-    private function resolveTopic(?string $topicId, ?string $mahalaId = null): ?Topic
+    private function resolveTopicIcon(?string $slug): string
     {
-        if (!$topicId) {
-            return null;
-        }
-
-        if ($mahalaId) {
-            return Topic::query()
-                ->where('mahala_id', $mahalaId)
-                ->where('slug', $topicId)
-                ->first();
-        }
-
-        return Topic::query()
-            ->where('slug', $topicId)
-            ->first();
+        return self::DEFAULT_TOPIC_ICONS[$slug ?: 'glavna'] ?? 'chatbubble-ellipses';
     }
 
-    private function resolveGeneralTopicColor(?string $topicId): string
+    private function formatTopicIcon(Topic $topic): string
     {
-        return self::GENERAL_TOPIC_COLORS[$topicId ?: 'glavna'] ?? '#7c3aed';
+        if ($topic->is_system && (!$topic->icon || $topic->icon === 'chatbubble-ellipses')) {
+            return $this->resolveTopicIcon($topic->slug);
+        }
+
+        return $topic->icon ?: $this->resolveTopicIcon($topic->slug);
+    }
+
+    private function resolveMahalaColor(?string $mahalaId): string
+    {
+        if ($mahalaId === self::SARAJEVO_TOPIC_SCOPE_ID) {
+            return '#8b5cf6';
+        }
+
+        if (in_array($mahalaId, self::SARAJEVO_POLYGON_IDS, true)) {
+            return '#2563eb';
+        }
+
+        return '#f59e0b';
     }
 }

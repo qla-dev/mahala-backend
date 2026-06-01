@@ -22,7 +22,7 @@ class TopicPostApiTest extends TestCase
             'created_by_user_id' => $user->id,
             'name' => 'Servisne dojave',
             'description' => 'Kvarovi, radovi i korisne servisne informacije',
-            'color_hex' => '#2dd4bf',
+            'icon' => 'construct',
             'is_premium' => true,
             'is_system' => false,
             'status' => 1,
@@ -34,7 +34,7 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.created_by_user_id', $user->id)
             ->assertJsonPath('data.name', 'Servisne dojave')
             ->assertJsonPath('data.slug', 'servisne-dojave')
-            ->assertJsonPath('data.color_hex', '#2dd4bf')
+            ->assertJsonPath('data.icon', 'construct')
             ->assertJsonPath('data.is_premium', true)
             ->assertJsonPath('data.is_system', false)
             ->assertJsonPath('data.status', 1);
@@ -61,7 +61,6 @@ class TopicPostApiTest extends TestCase
             'name' => 'Glavna',
             'slug' => 'glavna',
             'description' => 'Glavni lokalni tok za sve oko tebe',
-            'color_hex' => '#7c3aed',
             'is_premium' => false,
             'is_system' => true,
             'status' => 1,
@@ -84,7 +83,7 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.author_user_id', $user->id)
             ->assertJsonPath('data.mahala_id', $mahala->id)
             ->assertJsonPath('data.content', 'Ima li ko za kafu?')
-            ->assertJsonPath('data.color_hex', '#7c3aed')
+            ->assertJsonPath('data.color_hex', '#f59e0b')
             ->assertJsonPath('data.is_anonymous', true)
             ->assertJsonPath('data.status', 1)
             ->assertJsonPath('data.hidden', false);
@@ -208,7 +207,7 @@ class TopicPostApiTest extends TestCase
             'name' => 'Glavna',
             'slug' => 'glavna',
             'description' => 'Glavni lokalni tok za sve oko tebe',
-            'color_hex' => '#7c3aed',
+            'icon' => 'chatbubble-ellipses',
             'is_system' => true,
         ]);
 
@@ -236,7 +235,23 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('meta.posts.has_more', true);
     }
 
-    public function test_general_topic_post_inherits_color_without_topic_record(): void
+    public function test_topic_uses_default_icon_when_icon_is_not_supplied(): void
+    {
+        $mahala = $this->createMahala();
+
+        $response = $this->postJson('/api/topics', [
+            'mahala_id' => $mahala->id,
+            'name' => 'Servis',
+            'description' => 'Lokalni servisni razgovori.',
+            'status' => 1,
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.icon', 'chatbubble-ellipses');
+    }
+
+    public function test_feed_post_uses_mahala_color_without_topic_record(): void
     {
         $post = \App\Models\Post::query()->create([
             'topic_id' => 'posao',
@@ -252,7 +267,7 @@ class TopicPostApiTest extends TestCase
             ->assertJsonFragment([
                 'id' => $post->id,
                 'topic_id' => 'posao',
-                'color_hex' => '#06b6d4',
+                'color_hex' => '#2563eb',
             ]);
     }
 
@@ -297,7 +312,6 @@ class TopicPostApiTest extends TestCase
             'name' => 'Glavna',
             'slug' => 'glavna',
             'description' => 'Glavni lokalni tok za sve oko tebe',
-            'color_hex' => '#7c3aed',
             'is_system' => true,
         ]);
         Topic::query()->create([
@@ -305,14 +319,12 @@ class TopicPostApiTest extends TestCase
             'name' => 'Eventi',
             'slug' => 'eventi',
             'description' => 'Dešavanja, okupljanja, svirke i lokalni događaji',
-            'color_hex' => '#ec4899',
         ]);
         Topic::query()->create([
             'mahala_id' => $outsideMahala->id,
             'name' => 'Outside',
             'slug' => 'outside',
             'description' => 'Outside topic',
-            'color_hex' => '#06b6d4',
         ]);
 
         $this->getJson("/api/topics/current-mahalas?mahala_ids={$firstMahala->id},{$secondMahala->id}")
@@ -328,7 +340,6 @@ class TopicPostApiTest extends TestCase
             'mahala_id' => '10871',
             'name' => 'Parking patrola',
             'description' => 'Slobodna mjesta, blokirani prolazi i brze dojave oko parkinga.',
-            'color_hex' => '#f97316',
             'status' => 1,
         ]);
 
@@ -349,7 +360,6 @@ class TopicPostApiTest extends TestCase
             'mahala_id' => '10871',
             'name' => 'posao',
             'description' => 'Lokalni razgovori oko poslova.',
-            'color_hex' => '#06b6d4',
             'status' => 1,
         ]);
 
@@ -371,21 +381,18 @@ class TopicPostApiTest extends TestCase
             'name' => 'Parking patrola',
             'slug' => 'novi-grad-parking-patrola',
             'description' => 'Slobodna mjesta, blokirani prolazi i brze dojave oko parkinga.',
-            'color_hex' => '#f97316',
         ]);
         Topic::query()->create([
             'mahala_id' => 'sarajevo-71000',
             'name' => 'Sarajevo servis',
             'slug' => 'sarajevo-servis',
             'description' => 'Gradske dojave za saobraćaj, kvarove, radove i korisne info kroz Sarajevo.',
-            'color_hex' => '#7c3aed',
         ]);
         Topic::query()->create([
             'mahala_id' => 'user-outside-mahala',
             'name' => 'Outside',
             'slug' => 'outside-sarajevo-scope',
             'description' => 'Outside topic',
-            'color_hex' => '#06b6d4',
         ]);
 
         $this->getJson('/api/topics/current-mahalas?mahala_ids=10871')
