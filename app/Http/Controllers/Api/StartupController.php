@@ -74,7 +74,7 @@ class StartupController extends Controller
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
             $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->whereIn('mahala_id', $scopeIds)
                 ->where(function ($query) {
@@ -172,7 +172,7 @@ class StartupController extends Controller
 
     private function formatPost(Post $post): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
@@ -202,6 +202,7 @@ class StartupController extends Controller
             'id' => $comment->id,
             'post_id' => $comment->post_id,
             'author_user_id' => $comment->author,
+            'author_username' => $comment->authorUser?->username,
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,

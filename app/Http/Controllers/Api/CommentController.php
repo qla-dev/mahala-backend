@@ -20,6 +20,7 @@ class CommentController extends Controller
             Post::query()->findOrFail($post);
 
             $comments = Comment::query()
+                ->with('authorUser')
                 ->where('post_id', $post)
                 ->where('status', 1)
                 ->oldest()
@@ -62,6 +63,7 @@ class CommentController extends Controller
                 'is_anonymous' => $validated['is_anonymous'] ?? true,
                 'status' => $validated['status'] ?? 1,
             ]);
+            $comment->load('authorUser');
 
             return response()->json([
                 'message' => 'Comment created successfully.',
@@ -93,6 +95,7 @@ class CommentController extends Controller
             'id' => $comment->id,
             'post_id' => $comment->post_id,
             'author_user_id' => $comment->author,
+            'author_username' => $comment->authorUser?->username,
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,

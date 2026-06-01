@@ -124,6 +124,7 @@ class TopicPostApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.post_id', $post->id)
             ->assertJsonPath('data.author_user_id', $user->id)
+            ->assertJsonPath('data.author_username', $user->username)
             ->assertJsonPath('data.content', 'Prvi komentar')
             ->assertJsonPath('data.is_anonymous', true)
             ->assertJsonPath('data.status', 1);
@@ -144,6 +145,8 @@ class TopicPostApiTest extends TestCase
         $this->getJson("/api/posts/{$post->id}")
             ->assertOk()
             ->assertJsonPath('data.comments_count', 1)
+            ->assertJsonPath('data.comments.0.author_user_id', $user->id)
+            ->assertJsonPath('data.comments.0.author_username', $user->username)
             ->assertJsonPath('data.comments.0.content', 'Prvi komentar');
     }
 

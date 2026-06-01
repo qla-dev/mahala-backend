@@ -51,7 +51,7 @@ class PostController extends Controller
             }
 
             $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->whereIn('mahala_id', $feedScopeIds)
                 ->where(function ($query) {
@@ -86,7 +86,7 @@ class PostController extends Controller
     {
         try {
             $posts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
                 ->when($request->filled('channel_id'), fn ($query) => $query->where(
@@ -138,7 +138,7 @@ class PostController extends Controller
     {
         try {
             $post = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->findOrFail($id);
 
@@ -306,7 +306,7 @@ class PostController extends Controller
 
     private function formatPost(Post $post): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
@@ -336,6 +336,7 @@ class PostController extends Controller
             'id' => $comment->id,
             'post_id' => $comment->post_id,
             'author_user_id' => $comment->author,
+            'author_username' => $comment->authorUser?->username,
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,
