@@ -100,6 +100,53 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.0.id', $response->json('data.id'));
     }
 
+    public function test_it_creates_and_lists_comments_for_a_post(): void
+    {
+        $user = User::factory()->create();
+        $mahala = $this->createMahala();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $user->id,
+            'mahala_id' => $mahala->id,
+            'content' => 'Post sa komentarima',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $response = $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $user->id,
+            'content' => 'Prvi komentar',
+            'is_anonymous' => true,
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.post_id', $post->id)
+            ->assertJsonPath('data.author_user_id', $user->id)
+            ->assertJsonPath('data.content', 'Prvi komentar')
+            ->assertJsonPath('data.is_anonymous', true)
+            ->assertJsonPath('data.status', 1);
+
+        $this->assertDatabaseHas('comments', [
+            'id' => $response->json('data.id'),
+            'post_id' => $post->id,
+            'author' => $user->id,
+            'content' => 'Prvi komentar',
+            'status' => 1,
+        ]);
+
+        $this->getJson("/api/posts/{$post->id}/comments")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $response->json('data.id'));
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('data.comments_count', 1)
+            ->assertJsonPath('data.comments.0.content', 'Prvi komentar');
+    }
+
     public function test_it_lists_feed_posts_for_current_mahalas(): void
     {
         $firstMahala = $this->createMahala();

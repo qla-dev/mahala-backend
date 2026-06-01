@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\MahalaController;
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\StartupController;
 use App\Http\Controllers\Api\TopicController;
@@ -22,4 +23,6 @@ Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas'])
 Route::apiResource('topics', TopicController::class);
 
 Route::get('feed', [PostController::class, 'feed']);
+Route::get('posts/{post}/comments', [CommentController::class, 'index']);
+Route::post('posts/{post}/comments', [CommentController::class, 'store']);
 Route::apiResource('posts', PostController::class);

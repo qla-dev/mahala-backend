@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Comment;
 use App\Models\Post;
 use App\Models\Topic;
 use Exception;
@@ -73,6 +74,8 @@ class StartupController extends Controller
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
             $paginatedPosts = Post::query()
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->oldest()])
+                ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->whereIn('mahala_id', $scopeIds)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
@@ -169,6 +172,12 @@ class StartupController extends Controller
 
     private function formatPost(Post $post): array
     {
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->oldest()]);
+        $comments = $post->comments
+            ->where('status', 1)
+            ->values()
+            ->map(fn (Comment $comment) => $this->formatComment($comment));
+
         return [
             'id' => $post->id,
             'topic_id' => $post->topic_id,
@@ -180,8 +189,24 @@ class StartupController extends Controller
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
             'hidden' => $post->hidden,
+            'comments_count' => $post->active_comments_count ?? $comments->count(),
+            'comments' => $comments,
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
+        ];
+    }
+
+    private function formatComment(Comment $comment): array
+    {
+        return [
+            'id' => $comment->id,
+            'post_id' => $comment->post_id,
+            'author_user_id' => $comment->author,
+            'content' => $comment->content,
+            'is_anonymous' => $comment->is_anonymous,
+            'status' => $comment->status,
+            'created_at' => $comment->created_at,
+            'updated_at' => $comment->updated_at,
         ];
     }
 
