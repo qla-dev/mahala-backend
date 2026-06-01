@@ -199,6 +199,43 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('meta.has_more', false);
     }
 
+    public function test_it_loads_startup_topics_and_first_feed_page_for_current_mahalas(): void
+    {
+        $mahala = $this->createMahala();
+
+        Topic::query()->create([
+            'mahala_id' => $mahala->id,
+            'name' => 'Glavna',
+            'slug' => 'glavna',
+            'description' => 'Glavni lokalni tok za sve oko tebe',
+            'color_hex' => '#7c3aed',
+            'is_system' => true,
+        ]);
+
+        foreach (range(1, 12) as $index) {
+            \App\Models\Post::query()->create([
+                'topic_id' => 'glavna',
+                'mahala_id' => $mahala->id,
+                'content' => "Startup feed post {$index}",
+                'is_anonymous' => true,
+                'status' => 1,
+                'hidden' => false,
+            ]);
+        }
+
+        $this->getJson("/api/startup?mahala_ids={$mahala->id}&limit=10")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.topics')
+            ->assertJsonCount(10, 'data.posts')
+            ->assertJsonPath('meta.mahala_ids.0', $mahala->id)
+            ->assertJsonPath('meta.scope_ids.0', $mahala->id)
+            ->assertJsonPath('meta.posts.page', 1)
+            ->assertJsonPath('meta.posts.limit', 10)
+            ->assertJsonPath('meta.posts.total', 12)
+            ->assertJsonPath('meta.posts.last_page', 2)
+            ->assertJsonPath('meta.posts.has_more', true);
+    }
+
     public function test_general_topic_post_inherits_color_without_topic_record(): void
     {
         $post = \App\Models\Post::query()->create([
