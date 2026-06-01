@@ -26,7 +26,7 @@ class AuthController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Registration successful.',
+            'message' => 'Registracija uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
         ], 201);
@@ -48,12 +48,12 @@ class AuthController extends Controller
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Invalid login credentials.'],
+                'email' => ['Email, korisničko ime ili lozinka nisu ispravni.'],
             ]);
         }
 
         return response()->json([
-            'message' => 'Login successful.',
+            'message' => 'Prijava uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
         ]);
@@ -71,7 +71,7 @@ class AuthController extends Controller
         $request->user()?->currentAccessToken()?->delete();
 
         return response()->json([
-            'message' => 'Successfully logged out.',
+            'message' => 'Uspješno si odjavljen.',
         ]);
     }
 

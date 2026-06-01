@@ -75,6 +75,6 @@ class AuthApiTest extends TestCase
         $this->withToken($token)
             ->postJson('/api/auth/logout')
             ->assertOk()
-            ->assertJsonPath('message', 'Successfully logged out.');
+            ->assertJsonPath('message', 'Uspješno si odjavljen.');
     }
 }
