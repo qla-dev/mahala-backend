@@ -26,6 +26,42 @@ class NotificationController extends Controller
         ]);
     }
 
+    public function bulkSee(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => ['sometimes', 'array'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $query = Notification::query()
+            ->where('user_id', $request->user()->id)
+            ->whereNull('read_at');
+
+        if (array_key_exists('ids', $validated)) {
+            $ids = collect($validated['ids'])
+                ->filter(fn ($id) => is_numeric($id))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($ids->isEmpty()) {
+                return response()->json([
+                    'message' => 'No notifications marked as seen.',
+                    'data' => ['seen_count' => 0],
+                ]);
+            }
+
+            $query->whereIn('id', $ids);
+        }
+
+        $seenCount = $query->update(['read_at' => now()]);
+
+        return response()->json([
+            'message' => 'Notifications marked as seen.',
+            'data' => ['seen_count' => $seenCount],
+        ]);
+    }
+
     private function formatNotification(Notification $notification): array
     {
         return [

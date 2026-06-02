@@ -338,6 +338,67 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.0.related_post_id', $post->id);
     }
 
+    public function test_authenticated_user_can_bulk_see_notifications(): void
+    {
+        $owner = User::factory()->create();
+        $actor = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava za notifikacije',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $firstNotification = \App\Models\Notification::query()->create([
+            'user_id' => $owner->id,
+            'from_user_id' => $actor->id,
+            'type' => 1,
+            'title' => 'comment',
+            'body' => 'post_comment',
+            'related_post_id' => $post->id,
+        ]);
+        $secondNotification = \App\Models\Notification::query()->create([
+            'user_id' => $owner->id,
+            'from_user_id' => $actor->id,
+            'type' => 2,
+            'vote_value' => 1,
+            'title' => 'vote',
+            'body' => 'post_vote',
+            'related_post_id' => $post->id,
+        ]);
+        $otherNotification = \App\Models\Notification::query()->create([
+            'user_id' => $otherUser->id,
+            'from_user_id' => $actor->id,
+            'type' => 2,
+            'vote_value' => -1,
+            'title' => 'vote',
+            'body' => 'post_vote',
+            'related_post_id' => $post->id,
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->postJson('/api/notifications/bulk-see', [
+            'ids' => [$firstNotification->id, $otherNotification->id],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.seen_count', 1);
+
+        $this->assertNotNull($firstNotification->fresh()->read_at);
+        $this->assertNull($secondNotification->fresh()->read_at);
+        $this->assertNull($otherNotification->fresh()->read_at);
+
+        $this->postJson('/api/notifications/bulk-see')
+            ->assertOk()
+            ->assertJsonPath('data.seen_count', 1);
+
+        $this->assertNotNull($secondNotification->fresh()->read_at);
+        $this->assertNull($otherNotification->fresh()->read_at);
+    }
+
     public function test_it_lists_feed_posts_for_current_mahalas(): void
     {
         $firstMahala = $this->createMahala();

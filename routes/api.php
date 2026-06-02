@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->post('auth/logout', [AuthController::class, '
 Route::middleware('auth:sanctum')->get('user-settings', [UserSettingController::class, 'show']);
 Route::middleware('auth:sanctum')->patch('user-settings', [UserSettingController::class, 'update']);
 Route::middleware('auth:sanctum')->get('notifications', [NotificationController::class, 'index']);
+Route::middleware('auth:sanctum')->post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
 
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
 Route::apiResource('mahalas', MahalaController::class);
