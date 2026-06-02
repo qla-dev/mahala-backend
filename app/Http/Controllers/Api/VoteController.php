@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\CommentVote;
+use App\Models\Notification;
 use App\Models\Post;
 use App\Models\PostVote;
 use Illuminate\Http\Request;
@@ -33,6 +34,13 @@ class VoteController extends Controller
                     'user_id' => $userId,
                 ],
                 ['value' => $value],
+            );
+            $this->createVoteNotification(
+                userId: $post->author_user_id,
+                fromUserId: $userId,
+                relatedPostId: $post->id,
+                relatedCommentId: null,
+                value: $value,
             );
         }
 
@@ -64,6 +72,13 @@ class VoteController extends Controller
                 ],
                 ['value' => $value],
             );
+            $this->createVoteNotification(
+                userId: $comment->author,
+                fromUserId: $userId,
+                relatedPostId: $comment->post_id,
+                relatedCommentId: $comment->id,
+                value: $value,
+            );
         }
 
         return response()->json([
@@ -85,6 +100,35 @@ class VoteController extends Controller
             'score' => $upvotes - $downvotes,
             'my_vote' => $myVote,
         ];
+    }
+
+    private function createVoteNotification(?int $userId, int $fromUserId, int $relatedPostId, ?int $relatedCommentId, int $value): void
+    {
+        if (!$userId || $userId === $fromUserId) {
+            return;
+        }
+
+        $settings = \App\Models\User::query()->find($userId)?->settings()->firstOrCreate([], [
+            'notifications_app' => true,
+            'notifications' => true,
+            'locale' => 'bs',
+            'pro_status' => 0,
+        ]);
+
+        if (!$settings?->notifications_app) {
+            return;
+        }
+
+        Notification::query()->create([
+            'user_id' => $userId,
+            'from_user_id' => $fromUserId,
+            'type' => Notification::TYPE_VOTE,
+            'vote_value' => $value,
+            'title' => 'vote',
+            'body' => $relatedCommentId ? 'comment_vote' : 'post_vote',
+            'related_post_id' => $relatedPostId,
+            'related_comment_id' => $relatedCommentId,
+        ]);
     }
 
     private function commentVoteSummary(Comment $comment, int $userId): array

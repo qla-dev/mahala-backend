@@ -276,6 +276,68 @@ class TopicPostApiTest extends TestCase
         ]);
     }
 
+    public function test_commenting_on_someones_post_creates_notification(): void
+    {
+        $owner = User::factory()->create();
+        $commenter = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava za komentar',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $commenter->id,
+            'content' => 'Novi komentar',
+            'is_anonymous' => false,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $commenter->id,
+            'type' => 1,
+            'related_post_id' => $post->id,
+        ]);
+    }
+
+    public function test_voting_on_someones_post_creates_notification_when_app_notifications_are_enabled(): void
+    {
+        $owner = User::factory()->create();
+        $voter = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava za glas',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        Sanctum::actingAs($voter);
+
+        $this->postJson("/api/posts/{$post->id}/vote", ['value' => -1])
+            ->assertOk();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $voter->id,
+            'type' => 2,
+            'vote_value' => -1,
+            'related_post_id' => $post->id,
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.type', 2)
+            ->assertJsonPath('data.0.vote_value', -1)
+            ->assertJsonPath('data.0.related_post_id', $post->id);
+    }
+
     public function test_it_lists_feed_posts_for_current_mahalas(): void
     {
         $firstMahala = $this->createMahala();

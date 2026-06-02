@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
+use App\Models\Notification;
 use App\Models\Post;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -48,7 +49,7 @@ class CommentController extends Controller
     public function store(Request $request, string $post)
     {
         try {
-            Post::query()->findOrFail($post);
+            $postModel = Post::query()->findOrFail($post);
 
             $validated = $request->validate([
                 'author' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
@@ -80,6 +81,7 @@ class CommentController extends Controller
                 'status' => $validated['status'] ?? 1,
             ]);
             $comment->load('authorUser');
+            $this->createCommentNotification($postModel, $comment);
 
             return response()->json([
                 'message' => 'Comment created successfully.',
@@ -103,6 +105,32 @@ class CommentController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function createCommentNotification(Post $post, Comment $comment): void
+    {
+        if (!$post->author_user_id || (string) $post->author_user_id === (string) $comment->author) {
+            return;
+        }
+
+        if (!$post->author?->settings()->firstOrCreate([], [
+            'notifications_app' => true,
+            'notifications' => true,
+            'locale' => 'bs',
+            'pro_status' => 0,
+        ])->notifications_app) {
+            return;
+        }
+
+        Notification::query()->create([
+            'user_id' => $post->author_user_id,
+            'from_user_id' => $comment->is_anonymous ? null : $comment->author,
+            'type' => Notification::TYPE_COMMENT,
+            'title' => 'comment',
+            'body' => 'post_comment',
+            'related_post_id' => $post->id,
+            'related_comment_id' => $comment->id,
+        ]);
     }
 
     private function formatComment(Comment $comment, ?int $userId = null): array
