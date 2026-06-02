@@ -241,6 +241,41 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.comments.0.my_vote', 1);
     }
 
+    public function test_authenticated_user_can_read_and_update_settings(): void
+    {
+        $user = User::factory()->create();
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/user-settings')
+            ->assertOk()
+            ->assertJsonPath('data.notifications_app', true)
+            ->assertJsonPath('data.notifications', true)
+            ->assertJsonPath('data.locale', 'bs')
+            ->assertJsonPath('data.pro_status', 0);
+
+        $this->patchJson('/api/user-settings', [
+            'notifications_app' => false,
+            'notifications' => false,
+            'locale' => 'bs',
+            'pro_status' => 1,
+            'pro_started_at' => '2026-06-02 10:00:00',
+            'pro_ends_at' => '2026-07-02 10:00:00',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.notifications_app', false)
+            ->assertJsonPath('data.notifications', false)
+            ->assertJsonPath('data.pro_status', 1);
+
+        $this->assertDatabaseHas('user_settings', [
+            'user_id' => $user->id,
+            'notifications_app' => false,
+            'notifications' => false,
+            'locale' => 'bs',
+            'pro_status' => 1,
+        ]);
+    }
+
     public function test_it_lists_feed_posts_for_current_mahalas(): void
     {
         $firstMahala = $this->createMahala();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -77,11 +78,26 @@ class AuthController extends Controller
 
     private function formatUser(User $user): array
     {
+        $settings = $user->settings()->firstOrCreate([], [
+            'notifications_app' => true,
+            'notifications' => true,
+            'locale' => 'bs',
+            'pro_status' => UserSetting::PRO_INACTIVE,
+        ]);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'username' => $user->username,
             'email' => $user->email,
+            'settings' => [
+                'notifications_app' => $settings->notifications_app,
+                'notifications' => $settings->notifications,
+                'locale' => $settings->locale,
+                'pro_status' => $settings->pro_status,
+                'pro_started_at' => $settings->pro_started_at,
+                'pro_ends_at' => $settings->pro_ends_at,
+            ],
         ];
     }
 }
