@@ -51,13 +51,27 @@ class CommentController extends Controller
             $validated = $request->validate([
                 'author' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
                 'author_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
+                'parent_id' => ['sometimes', 'nullable', 'integer', Rule::exists('comments', 'id')],
                 'content' => ['required', 'string'],
                 'is_anonymous' => ['sometimes', 'boolean'],
                 'status' => ['sometimes', 'integer'],
             ]);
 
+            $parentId = $validated['parent_id'] ?? null;
+
+            if ($parentId !== null) {
+                $parent = Comment::query()->findOrFail($parentId);
+
+                if ((string) $parent->post_id !== (string) $post || $parent->parent_id !== null) {
+                    throw ValidationException::withMessages([
+                        'parent_id' => ['The selected parent comment is invalid.'],
+                    ]);
+                }
+            }
+
             $comment = Comment::query()->create([
                 'post_id' => $post,
+                'parent_id' => $parentId,
                 'author' => $validated['author'] ?? $validated['author_user_id'] ?? null,
                 'content' => $validated['content'],
                 'is_anonymous' => $validated['is_anonymous'] ?? true,
@@ -94,6 +108,7 @@ class CommentController extends Controller
         return [
             'id' => $comment->id,
             'post_id' => $comment->post_id,
+            'parent_id' => $comment->parent_id,
             'author_user_id' => $comment->author,
             'author_username' => $comment->authorUser?->username,
             'content' => $comment->content,

@@ -335,6 +335,7 @@ class PostController extends Controller
         return [
             'id' => $comment->id,
             'post_id' => $comment->post_id,
+            'parent_id' => $comment->parent_id,
             'author_user_id' => $comment->author,
             'author_username' => $comment->authorUser?->username,
             'content' => $comment->content,

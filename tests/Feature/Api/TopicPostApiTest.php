@@ -123,6 +123,7 @@ class TopicPostApiTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('data.post_id', $post->id)
+            ->assertJsonPath('data.parent_id', null)
             ->assertJsonPath('data.author_user_id', $user->id)
             ->assertJsonPath('data.author_username', $user->username)
             ->assertJsonPath('data.content', 'Prvi komentar')
@@ -148,6 +149,24 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.comments.0.author_user_id', $user->id)
             ->assertJsonPath('data.comments.0.author_username', $user->username)
             ->assertJsonPath('data.comments.0.content', 'Prvi komentar');
+
+        $childResponse = $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $user->id,
+            'parent_id' => $response->json('data.id'),
+            'content' => 'Komentar na komentar',
+            'is_anonymous' => false,
+        ]);
+
+        $childResponse
+            ->assertCreated()
+            ->assertJsonPath('data.parent_id', $response->json('data.id'))
+            ->assertJsonPath('data.content', 'Komentar na komentar');
+
+        $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $user->id,
+            'parent_id' => $childResponse->json('data.id'),
+            'content' => 'Predubok komentar',
+        ])->assertUnprocessable();
     }
 
     public function test_it_lists_feed_posts_for_current_mahalas(): void

@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('comments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('post_id')->constrained('posts')->cascadeOnDelete();
+            $table->foreignId('parent_id')->nullable()->constrained('comments')->cascadeOnDelete();
             $table->foreignId('author')->nullable()->constrained('users')->nullOnDelete();
             $table->text('content');
             $table->boolean('is_anonymous');
@@ -18,6 +19,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['post_id', 'status']);
+            $table->index(['parent_id', 'status']);
         });
     }
 

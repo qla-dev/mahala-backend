@@ -12,6 +12,7 @@ class Comment extends Model
 
     protected $fillable = [
         'post_id',
+        'parent_id',
         'author',
         'content',
         'is_anonymous',
@@ -22,6 +23,7 @@ class Comment extends Model
     {
         return [
             'post_id' => 'integer',
+            'parent_id' => 'integer',
             'author' => 'integer',
             'is_anonymous' => 'boolean',
             'status' => 'integer',
@@ -31,6 +33,11 @@ class Comment extends Model
     public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Comment::class, 'parent_id');
     }
 
     public function authorUser(): BelongsTo
