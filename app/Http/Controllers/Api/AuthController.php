@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -27,7 +28,7 @@ class AuthController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Registracija uspješna.',
+            'message' => 'Registracija je uspjesna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
         ], 201);
@@ -50,11 +51,12 @@ class AuthController extends Controller
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Email, korisničko ime ili lozinka nisu ispravni.'],
+                'password' => ['Email, korisničko ime ili lozinka nisu ispravni.'],
             ]);
         }
 
         return response()->json([
-            'message' => 'Prijava uspješna.',
+            'message' => 'Prijava je uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
         ]);
@@ -73,6 +75,54 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Uspješno si odjavljen.',
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'username' => [
+                'sometimes',
+                'string',
+                'min:3',
+                'max:50',
+                'alpha_dash',
+                Rule::unique('users', 'username')->ignore($user->id),
+            ],
+            'name' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $user->fill($validated)->save();
+
+        return response()->json([
+            'message' => 'Profil je uspjesno azuriran.',
+            'user' => $this->formatUser($user->refresh()),
+        ]);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($validated['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Trenutna lozinka nije ispravna.'],
+            ]);
+        }
+
+        $user->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        return response()->json([
+            'message' => 'Lozinka je uspjesno promijenjena.',
         ]);
     }
 

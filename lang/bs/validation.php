@@ -1,0 +1,41 @@
+<?php
+
+return [
+    'accepted' => 'Polje :attribute mora biti prihvaćeno.',
+    'alpha_dash' => 'Polje :attribute smije sadržavati samo slova, brojeve, crtice i donje crtice.',
+    'array' => 'Polje :attribute mora biti niz.',
+    'boolean' => 'Polje :attribute mora biti tačno ili netačno.',
+    'confirmed' => 'Potvrda polja :attribute se ne poklapa.',
+    'date' => 'Polje :attribute mora biti ispravan datum.',
+    'email' => 'Polje :attribute mora biti ispravna email adresa.',
+    'exists' => 'Odabrana vrijednost za :attribute nije ispravna.',
+    'integer' => 'Polje :attribute mora biti cijeli broj.',
+    'in' => 'Odabrana vrijednost za :attribute nije ispravna.',
+    'max' => [
+        'string' => 'Polje :attribute može imati najviše :max znakova.',
+        'numeric' => 'Polje :attribute ne smije biti veće od :max.',
+        'array' => 'Polje :attribute ne smije imati više od :max stavki.',
+    ],
+    'min' => [
+        'string' => 'Polje :attribute mora imati najmanje :min znakova.',
+        'numeric' => 'Polje :attribute mora biti najmanje :min.',
+        'array' => 'Polje :attribute mora imati najmanje :min stavki.',
+    ],
+    'required' => 'Polje :attribute je obavezno.',
+    'required_without' => 'Polje :attribute je obavezno kada :values nije uneseno.',
+    'string' => 'Polje :attribute mora biti tekst.',
+    'unique' => 'Vrijednost za :attribute je vec zauzeta.',
+    'attributes' => [
+        'username' => 'korisnicko ime',
+        'email' => 'email',
+        'password' => 'lozinka',
+        'current_password' => 'trenutna lozinka',
+        'name' => 'ime',
+        'notifications_app' => 'notifikacije u aplikaciji',
+        'notifications' => 'notifikacije',
+        'locale' => 'jezik',
+        'pro_status' => 'Pro status',
+        'pro_started_at' => 'pocetak Pro statusa',
+        'pro_ends_at' => 'kraj Pro statusa',
+    ],
+];

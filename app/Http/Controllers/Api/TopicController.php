@@ -86,7 +86,7 @@ class TopicController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving topics for current mahalas.',
+                'message' => 'Doslo je do greske pri ucitavanju tema za trenutne mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -106,7 +106,7 @@ class TopicController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving topics.',
+                'message' => 'Doslo je do greske pri ucitavanju tema.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -119,19 +119,19 @@ class TopicController extends Controller
             $topic = Topic::query()->create($this->buildAttributes($validated));
 
             return response()->json([
-                'message' => 'Topic created successfully.',
+                'message' => 'Tema je uspjesno kreirana.',
                 'data' => $this->formatTopic($topic),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while creating the topic.',
+                'message' => 'Doslo je do greske u bazi pri kreiranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while creating the topic.',
+                'message' => 'Doslo je do neocekivane greske pri kreiranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -147,12 +147,12 @@ class TopicController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Topic not found.',
+                'message' => 'Tema nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving the topic.',
+                'message' => 'Doslo je do greske pri ucitavanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -167,24 +167,24 @@ class TopicController extends Controller
             $topic->refresh();
 
             return response()->json([
-                'message' => 'Topic updated successfully.',
+                'message' => 'Tema je uspjesno azurirana.',
                 'data' => $this->formatTopic($topic),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Topic not found.',
+                'message' => 'Tema nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while updating the topic.',
+                'message' => 'Doslo je do greske u bazi pri azuriranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while updating the topic.',
+                'message' => 'Doslo je do neocekivane greske pri azuriranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -197,21 +197,21 @@ class TopicController extends Controller
             $topic->delete();
 
             return response()->json([
-                'message' => 'Topic deleted successfully.',
+                'message' => 'Tema je uspjesno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Topic not found.',
+                'message' => 'Tema nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while deleting the topic.',
+                'message' => 'Doslo je do greske u bazi pri brisanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while deleting the topic.',
+                'message' => 'Doslo je do neocekivane greske pri brisanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }

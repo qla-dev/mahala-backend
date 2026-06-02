@@ -5,19 +5,33 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\UserSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class UserSettingController extends Controller
 {
     public function show(Request $request)
     {
+        $settings = $this->settingsFor($request);
+        Log::info('[MAHALA][settings] show', [
+            'user_id' => $request->user()->id,
+            'settings_id' => $settings->id,
+            'notifications_app' => $settings->notifications_app,
+            'notifications' => $settings->notifications,
+        ]);
+
         return response()->json([
-            'data' => $this->formatSettings($this->settingsFor($request)),
+            'data' => $this->formatSettings($settings),
         ]);
     }
 
     public function update(Request $request)
     {
+        Log::info('[MAHALA][settings] update raw request', [
+            'user_id' => $request->user()->id,
+            'payload' => $request->all(),
+        ]);
+
         $validated = $request->validate([
             'notifications_app' => ['sometimes', 'boolean'],
             'notifications' => ['sometimes', 'boolean'],
@@ -31,7 +45,27 @@ class UserSettingController extends Controller
             'pro_ends_at' => ['sometimes', 'nullable', 'date'],
         ]);
 
+        Log::info('[MAHALA][settings] update request', [
+            'user_id' => $request->user()->id,
+            'payload' => $request->only([
+                'notifications_app',
+                'notifications',
+                'locale',
+                'pro_status',
+                'pro_started_at',
+                'pro_ends_at',
+            ]),
+            'validated' => $validated,
+        ]);
+
         $settings = $this->settingsFor($request);
+        Log::info('[MAHALA][settings] before save', [
+            'user_id' => $request->user()->id,
+            'settings_id' => $settings->id,
+            'notifications_app' => $settings->notifications_app,
+            'notifications' => $settings->notifications,
+        ]);
+
         $settings->fill($validated);
 
         if (array_key_exists('pro_status', $validated) && (int) $validated['pro_status'] === UserSetting::PRO_INACTIVE) {
@@ -40,10 +74,20 @@ class UserSettingController extends Controller
         }
 
         $settings->save();
+        $settings = $settings->refresh();
+
+        Log::info('[MAHALA][settings] after save', [
+            'user_id' => $request->user()->id,
+            'settings_id' => $settings->id,
+            'notifications_app' => $settings->notifications_app,
+            'notifications' => $settings->notifications,
+            'raw_notifications_app' => $settings->getRawOriginal('notifications_app'),
+            'raw_notifications' => $settings->getRawOriginal('notifications'),
+        ]);
 
         return response()->json([
-            'message' => 'User settings updated successfully.',
-            'data' => $this->formatSettings($settings->refresh()),
+            'message' => 'Korisnicke postavke su uspjesno azurirane.',
+            'data' => $this->formatSettings($settings),
         ]);
     }
 

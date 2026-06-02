@@ -79,7 +79,7 @@ class PostController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving feed posts.',
+                'message' => 'Doslo je do greske pri ucitavanju objava iz feeda.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -109,7 +109,7 @@ class PostController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving posts.',
+                'message' => 'Doslo je do greske pri ucitavanju objava.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -122,19 +122,19 @@ class PostController extends Controller
             $post = Post::query()->create($this->buildAttributes($validated));
 
             return response()->json([
-                'message' => 'Post created successfully.',
+                'message' => 'Objava je uspjesno kreirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while creating the post.',
+                'message' => 'Doslo je do greske u bazi pri kreiranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while creating the post.',
+                'message' => 'Doslo je do neocekivane greske pri kreiranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -154,12 +154,12 @@ class PostController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Post not found.',
+                'message' => 'Objava nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving the post.',
+                'message' => 'Doslo je do greske pri ucitavanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -174,24 +174,24 @@ class PostController extends Controller
             $post->refresh();
 
             return response()->json([
-                'message' => 'Post updated successfully.',
+                'message' => 'Objava je uspjesno azurirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Post not found.',
+                'message' => 'Objava nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while updating the post.',
+                'message' => 'Doslo je do greske u bazi pri azuriranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while updating the post.',
+                'message' => 'Doslo je do neocekivane greske pri azuriranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -204,21 +204,21 @@ class PostController extends Controller
             $post->delete();
 
             return response()->json([
-                'message' => 'Post deleted successfully.',
+                'message' => 'Objava je uspjesno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Post not found.',
+                'message' => 'Objava nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while deleting the post.',
+                'message' => 'Doslo je do greske u bazi pri brisanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while deleting the post.',
+                'message' => 'Doslo je do neocekivane greske pri brisanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }

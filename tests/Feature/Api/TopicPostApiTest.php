@@ -276,6 +276,60 @@ class TopicPostApiTest extends TestCase
         ]);
     }
 
+    public function test_authenticated_user_can_change_password(): void
+    {
+        $user = User::factory()->create([
+            'password' => 'old-password',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/auth/change-password', [
+            'current_password' => 'wrong-password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/auth/change-password', [
+            'current_password' => 'old-password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertOk();
+
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check(
+            'new-password',
+            $user->fresh()->password,
+        ));
+    }
+
+    public function test_authenticated_user_can_update_username_and_name_but_not_email(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'old_username',
+            'name' => 'Old Name',
+            'email' => 'old@example.com',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->patchJson('/api/auth/profile', [
+            'username' => 'new_username',
+            'name' => 'New Name',
+            'email' => 'new@example.com',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.username', 'new_username')
+            ->assertJsonPath('user.name', 'New Name')
+            ->assertJsonPath('user.email', 'old@example.com');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'username' => 'new_username',
+            'name' => 'New Name',
+            'email' => 'old@example.com',
+        ]);
+    }
+
     public function test_commenting_on_someones_post_creates_notification(): void
     {
         $owner = User::factory()->create();

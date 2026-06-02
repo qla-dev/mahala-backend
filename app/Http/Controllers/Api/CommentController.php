@@ -35,12 +35,12 @@ class CommentController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Post not found.',
+                'message' => 'Objava nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An error occurred while retrieving comments.',
+                'message' => 'Doslo je do greske pri ucitavanju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -67,7 +67,7 @@ class CommentController extends Controller
 
                 if ((string) $parent->post_id !== (string) $post || $parent->parent_id !== null) {
                     throw ValidationException::withMessages([
-                        'parent_id' => ['The selected parent comment is invalid.'],
+                        'parent_id' => ['Odabrani roditeljski komentar nije ispravan.'],
                     ]);
                 }
             }
@@ -84,24 +84,24 @@ class CommentController extends Controller
             $this->createCommentNotification($postModel, $comment);
 
             return response()->json([
-                'message' => 'Comment created successfully.',
+                'message' => 'Komentar je uspjesno kreiran.',
                 'data' => $this->formatComment($comment, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Post not found.',
+                'message' => 'Objava nije pronadjena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'A database error occurred while creating the comment.',
+                'message' => 'Doslo je do greske u bazi pri kreiranju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'An unexpected error occurred while creating the comment.',
+                'message' => 'Doslo je do neocekivane greske pri kreiranju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }

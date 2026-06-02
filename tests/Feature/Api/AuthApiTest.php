@@ -57,6 +57,24 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('user.email', 'user@example.com');
     }
 
+    public function test_invalid_login_credentials_return_email_and_password_errors(): void
+    {
+        User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'user@example.com',
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'Email, korisnicko ime ili lozinka nisu ispravni.')
+            ->assertJsonPath('errors.password.0', 'Email, korisnicko ime ili lozinka nisu ispravni.');
+    }
+
     public function test_authenticated_user_can_fetch_profile_and_logout(): void
     {
         $user = User::query()->create([
@@ -75,6 +93,6 @@ class AuthApiTest extends TestCase
         $this->withToken($token)
             ->postJson('/api/auth/logout')
             ->assertOk()
-            ->assertJsonPath('message', 'Uspješno si odjavljen.');
+            ->assertJsonPath('message', 'Uspjesno si odjavljen.');
     }
 }
