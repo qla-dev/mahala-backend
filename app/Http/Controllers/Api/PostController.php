@@ -50,8 +50,11 @@ class PostController extends Controller
                 ], 200);
             }
 
+            $userId = $request->user('sanctum')?->id;
+
             $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->whereIn('mahala_id', $feedScopeIds)
                 ->where(function ($query) {
@@ -62,7 +65,7 @@ class PostController extends Controller
 
             $posts = $paginatedPosts
                 ->getCollection()
-                ->map(fn (Post $post) => $this->formatPost($post));
+                ->map(fn (Post $post) => $this->formatPost($post, $userId));
 
             return response()->json([
                 'data' => $posts,
@@ -85,8 +88,11 @@ class PostController extends Controller
     public function index(Request $request)
     {
         try {
+            $userId = $request->user('sanctum')?->id;
+
             $posts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
                 ->when($request->filled('channel_id'), fn ($query) => $query->where(
@@ -96,7 +102,7 @@ class PostController extends Controller
                 ->when($request->filled('mahala_id'), fn ($query) => $query->where('mahala_id', $request->query('mahala_id')))
                 ->latest()
                 ->get()
-                ->map(fn (Post $post) => $this->formatPost($post));
+                ->map(fn (Post $post) => $this->formatPost($post, $userId));
 
             return response()->json([
                 'data' => $posts,
@@ -117,7 +123,7 @@ class PostController extends Controller
 
             return response()->json([
                 'message' => 'Post created successfully.',
-                'data' => $this->formatPost($post),
+                'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
@@ -134,16 +140,17 @@ class PostController extends Controller
         }
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
         try {
             $post = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->findOrFail($id);
 
             return response()->json([
-                'data' => $this->formatPost($post),
+                'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -168,7 +175,7 @@ class PostController extends Controller
 
             return response()->json([
                 'message' => 'Post updated successfully.',
-                'data' => $this->formatPost($post),
+                'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
@@ -304,13 +311,15 @@ class PostController extends Controller
             ->all();
     }
 
-    private function formatPost(Post $post): array
+    private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
-            ->map(fn (Comment $comment) => $this->formatComment($comment));
+            ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
+        $upvotes = (int) ($post->upvotes_count ?? $post->votes()->where('value', 1)->count());
+        $downvotes = (int) ($post->downvotes_count ?? $post->votes()->where('value', -1)->count());
 
         return [
             'id' => $post->id,
@@ -323,6 +332,12 @@ class PostController extends Controller
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
             'hidden' => $post->hidden,
+            'upvotes' => $upvotes,
+            'downvotes' => $downvotes,
+            'score' => $upvotes - $downvotes,
+            'my_vote' => $userId
+                ? (int) ($post->votes()->where('user_id', $userId)->value('value') ?? 0)
+                : 0,
             'comments_count' => $post->active_comments_count ?? $comments->count(),
             'comments' => $comments,
             'created_at' => $post->created_at,
@@ -330,8 +345,11 @@ class PostController extends Controller
         ];
     }
 
-    private function formatComment(Comment $comment): array
+    private function formatComment(Comment $comment, ?int $userId = null): array
     {
+        $upvotes = (int) ($comment->upvotes_count ?? $comment->votes()->where('value', 1)->count());
+        $downvotes = (int) ($comment->downvotes_count ?? $comment->votes()->where('value', -1)->count());
+
         return [
             'id' => $comment->id,
             'post_id' => $comment->post_id,
@@ -341,6 +359,12 @@ class PostController extends Controller
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,
+            'upvotes' => $upvotes,
+            'downvotes' => $downvotes,
+            'score' => $upvotes - $downvotes,
+            'my_vote' => $userId
+                ? (int) ($comment->votes()->where('user_id', $userId)->value('value') ?? 0)
+                : 0,
             'created_at' => $comment->created_at,
             'updated_at' => $comment->updated_at,
         ];

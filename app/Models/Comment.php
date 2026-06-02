@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Comment extends Model
 {
@@ -43,5 +45,18 @@ class Comment extends Model
     public function authorUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author');
+    }
+
+    public function votes(): HasMany
+    {
+        return $this->hasMany(CommentVote::class, 'reply_id');
+    }
+
+    public function scopeWithVoteCounts(Builder $query): Builder
+    {
+        return $query->withCount([
+            'votes as upvotes_count' => fn (Builder $query) => $query->where('value', 1),
+            'votes as downvotes_count' => fn (Builder $query) => $query->where('value', -1),
+        ]);
     }
 }

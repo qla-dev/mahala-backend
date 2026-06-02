@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -47,5 +48,18 @@ class Post extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class);
+    }
+
+    public function votes(): HasMany
+    {
+        return $this->hasMany(PostVote::class);
+    }
+
+    public function scopeWithVoteCounts(Builder $query): Builder
+    {
+        return $query->withCount([
+            'votes as upvotes_count' => fn (Builder $query) => $query->where('value', 1),
+            'votes as downvotes_count' => fn (Builder $query) => $query->where('value', -1),
+        ]);
     }
 }

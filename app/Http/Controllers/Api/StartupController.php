@@ -66,6 +66,8 @@ class StartupController extends Controller
                 ], 200);
             }
 
+            $userId = $request->user('sanctum')?->id;
+
             $topics = Topic::query()
                 ->whereIn('mahala_id', $scopeIds)
                 ->orderBy('is_system', 'desc')
@@ -74,7 +76,8 @@ class StartupController extends Controller
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
             $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->whereIn('mahala_id', $scopeIds)
                 ->where(function ($query) {
@@ -85,7 +88,7 @@ class StartupController extends Controller
 
             $posts = $paginatedPosts
                 ->getCollection()
-                ->map(fn (Post $post) => $this->formatPost($post));
+                ->map(fn (Post $post) => $this->formatPost($post, $userId));
 
             return response()->json([
                 'data' => [
@@ -170,13 +173,15 @@ class StartupController extends Controller
         ];
     }
 
-    private function formatPost(Post $post): array
+    private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
-            ->map(fn (Comment $comment) => $this->formatComment($comment));
+            ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
+        $upvotes = (int) ($post->upvotes_count ?? $post->votes()->where('value', 1)->count());
+        $downvotes = (int) ($post->downvotes_count ?? $post->votes()->where('value', -1)->count());
 
         return [
             'id' => $post->id,
@@ -189,6 +194,12 @@ class StartupController extends Controller
             'is_anonymous' => $post->is_anonymous,
             'status' => $post->status,
             'hidden' => $post->hidden,
+            'upvotes' => $upvotes,
+            'downvotes' => $downvotes,
+            'score' => $upvotes - $downvotes,
+            'my_vote' => $userId
+                ? (int) ($post->votes()->where('user_id', $userId)->value('value') ?? 0)
+                : 0,
             'comments_count' => $post->active_comments_count ?? $comments->count(),
             'comments' => $comments,
             'created_at' => $post->created_at,
@@ -196,8 +207,11 @@ class StartupController extends Controller
         ];
     }
 
-    private function formatComment(Comment $comment): array
+    private function formatComment(Comment $comment, ?int $userId = null): array
     {
+        $upvotes = (int) ($comment->upvotes_count ?? $comment->votes()->where('value', 1)->count());
+        $downvotes = (int) ($comment->downvotes_count ?? $comment->votes()->where('value', -1)->count());
+
         return [
             'id' => $comment->id,
             'post_id' => $comment->post_id,
@@ -207,6 +221,12 @@ class StartupController extends Controller
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,
+            'upvotes' => $upvotes,
+            'downvotes' => $downvotes,
+            'score' => $upvotes - $downvotes,
+            'my_vote' => $userId
+                ? (int) ($comment->votes()->where('user_id', $userId)->value('value') ?? 0)
+                : 0,
             'created_at' => $comment->created_at,
             'updated_at' => $comment->updated_at,
         ];

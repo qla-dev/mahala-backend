@@ -14,18 +14,20 @@ use Illuminate\Validation\ValidationException;
 
 class CommentController extends Controller
 {
-    public function index(string $post)
+    public function index(Request $request, string $post)
     {
         try {
             Post::query()->findOrFail($post);
+            $userId = $request->user('sanctum')?->id;
 
             $comments = Comment::query()
                 ->with('authorUser')
+                ->withVoteCounts()
                 ->where('post_id', $post)
                 ->where('status', 1)
                 ->oldest()
                 ->get()
-                ->map(fn (Comment $comment) => $this->formatComment($comment));
+                ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
 
             return response()->json([
                 'data' => $comments,
@@ -81,7 +83,7 @@ class CommentController extends Controller
 
             return response()->json([
                 'message' => 'Comment created successfully.',
-                'data' => $this->formatComment($comment),
+                'data' => $this->formatComment($comment, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
@@ -103,8 +105,11 @@ class CommentController extends Controller
         }
     }
 
-    private function formatComment(Comment $comment): array
+    private function formatComment(Comment $comment, ?int $userId = null): array
     {
+        $upvotes = (int) ($comment->upvotes_count ?? $comment->votes()->where('value', 1)->count());
+        $downvotes = (int) ($comment->downvotes_count ?? $comment->votes()->where('value', -1)->count());
+
         return [
             'id' => $comment->id,
             'post_id' => $comment->post_id,
@@ -114,6 +119,12 @@ class CommentController extends Controller
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,
+            'upvotes' => $upvotes,
+            'downvotes' => $downvotes,
+            'score' => $upvotes - $downvotes,
+            'my_vote' => $userId
+                ? (int) ($comment->votes()->where('user_id', $userId)->value('value') ?? 0)
+                : 0,
             'created_at' => $comment->created_at,
             'updated_at' => $comment->updated_at,
         ];

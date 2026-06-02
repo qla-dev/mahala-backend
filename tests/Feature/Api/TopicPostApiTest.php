@@ -6,6 +6,7 @@ use App\Models\Mahala;
 use App\Models\Topic;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class TopicPostApiTest extends TestCase
@@ -167,6 +168,77 @@ class TopicPostApiTest extends TestCase
             'parent_id' => $childResponse->json('data.id'),
             'content' => 'Predubok komentar',
         ])->assertUnprocessable();
+    }
+
+    public function test_authenticated_user_can_vote_on_a_post(): void
+    {
+        $user = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'content' => 'Post za glasanje',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/posts/{$post->id}/vote", ['value' => 1])
+            ->assertOk()
+            ->assertJsonPath('data.post_id', $post->id)
+            ->assertJsonPath('data.upvotes', 1)
+            ->assertJsonPath('data.downvotes', 0)
+            ->assertJsonPath('data.my_vote', 1);
+
+        $this->postJson("/api/posts/{$post->id}/vote", ['value' => -1])
+            ->assertOk()
+            ->assertJsonPath('data.upvotes', 0)
+            ->assertJsonPath('data.downvotes', 1)
+            ->assertJsonPath('data.my_vote', -1);
+
+        $this->assertDatabaseCount('post_votes', 1);
+
+        $this->postJson("/api/posts/{$post->id}/vote", ['value' => 0])
+            ->assertOk()
+            ->assertJsonPath('data.upvotes', 0)
+            ->assertJsonPath('data.downvotes', 0)
+            ->assertJsonPath('data.my_vote', 0);
+
+        $this->assertDatabaseCount('post_votes', 0);
+    }
+
+    public function test_authenticated_user_can_vote_on_a_comment(): void
+    {
+        $user = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'content' => 'Post sa komentarom za glasanje',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+        $comment = \App\Models\Comment::query()->create([
+            'post_id' => $post->id,
+            'author' => $user->id,
+            'content' => 'Komentar za glasanje',
+            'is_anonymous' => true,
+            'status' => 1,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/comments/{$comment->id}/vote", ['value' => 1])
+            ->assertOk()
+            ->assertJsonPath('data.reply_id', $comment->id)
+            ->assertJsonPath('data.upvotes', 1)
+            ->assertJsonPath('data.downvotes', 0)
+            ->assertJsonPath('data.my_vote', 1);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('data.comments.0.upvotes', 1)
+            ->assertJsonPath('data.comments.0.downvotes', 0)
+            ->assertJsonPath('data.comments.0.my_vote', 1);
     }
 
     public function test_it_lists_feed_posts_for_current_mahalas(): void
