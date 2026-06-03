@@ -10,6 +10,7 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -36,12 +37,14 @@ class PostController extends Controller
                 'mahala_ids' => ['required'],
                 'page' => ['sometimes', 'integer', 'min:1'],
                 'limit' => ['sometimes', 'integer', 'min:1', 'max:50'],
+                'sort' => ['sometimes', Rule::in(['recent', 'popular', 'commented'])],
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
             $feedScopeIds = $this->withParentTopicScopes($mahalaIds);
             $page = (int) ($payload['page'] ?? 1);
             $limit = (int) ($payload['limit'] ?? 10);
+            $sort = $payload['sort'] ?? 'recent';
 
             if ($feedScopeIds === []) {
                 return response()->json([
@@ -51,17 +54,35 @@ class PostController extends Controller
             }
 
             $userId = $request->user('sanctum')?->id;
+            $engagementWindowStart = Carbon::now()->subDays(10);
 
-            $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+            $postsQuery = Post::query()
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
-                ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
+                ->withCount([
+                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                    'comments as recent_comments_count' => fn ($query) => $query
+                        ->where('status', 1)
+                        ->where('created_at', '>=', $engagementWindowStart),
+                    'votes as recent_upvotes_count' => fn ($query) => $query
+                        ->where('value', 1)
+                        ->where('created_at', '>=', $engagementWindowStart),
+                ])
                 ->whereIn('mahala_id', $feedScopeIds)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
                 })
-                ->latest()
-                ->paginate($limit, ['*'], 'page', $page);
+                ->when(
+                    $sort === 'popular',
+                    fn ($query) => $query->orderByDesc('recent_upvotes_count')->latest(),
+                    fn ($query) => $query->when(
+                        $sort === 'commented',
+                        fn ($query) => $query->orderByDesc('recent_comments_count')->latest(),
+                        fn ($query) => $query->latest(),
+                    ),
+                );
+
+            $paginatedPosts = $postsQuery->paginate($limit, ['*'], 'page', $page);
 
             $posts = $paginatedPosts
                 ->getCollection()
@@ -91,7 +112,7 @@ class PostController extends Controller
             $userId = $request->user('sanctum')?->id;
 
             $posts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
@@ -144,7 +165,7 @@ class PostController extends Controller
     {
         try {
             $post = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
                 ->findOrFail($id);
@@ -313,7 +334,7 @@ class PostController extends Controller
 
     private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
