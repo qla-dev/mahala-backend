@@ -4,7 +4,9 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthApiTest extends TestCase
@@ -71,8 +73,8 @@ class AuthApiTest extends TestCase
             'password' => 'wrong-password',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.email.0', 'Email, korisnicko ime ili lozinka nisu ispravni.')
-            ->assertJsonPath('errors.password.0', 'Email, korisnicko ime ili lozinka nisu ispravni.');
+            ->assertJsonPath('errors.email.0', 'Email, korisničko ime ili lozinka nisu ispravni.')
+            ->assertJsonPath('errors.password.0', 'Email, korisničko ime ili lozinka nisu ispravni.');
     }
 
     public function test_authenticated_user_can_fetch_profile_and_logout(): void
@@ -93,6 +95,64 @@ class AuthApiTest extends TestCase
         $this->withToken($token)
             ->postJson('/api/auth/logout')
             ->assertOk()
-            ->assertJsonPath('message', 'Uspjesno si odjavljen.');
+            ->assertJsonPath('message', 'Uspješno si odjavljen.');
+    }
+
+    public function test_google_auth_registers_user_and_returns_token(): void
+    {
+        Config::set('services.google.client_ids', ['google-client-id']);
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'aud' => 'google-client-id',
+                'sub' => 'google-subject-123',
+                'email' => 'google@example.com',
+                'email_verified' => 'true',
+                'name' => 'Google User',
+            ]),
+        ]);
+
+        $this->postJson('/api/auth/google', [
+            'id_token' => 'valid-google-id-token',
+        ])
+            ->assertOk()
+            ->assertJsonStructure(['message', 'token', 'user'])
+            ->assertJsonPath('user.email', 'google@example.com');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'google@example.com',
+            'google_id' => 'google-subject-123',
+        ]);
+    }
+
+    public function test_google_auth_links_existing_email_user(): void
+    {
+        Config::set('services.google.client_ids', ['google-client-id']);
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'aud' => 'google-client-id',
+                'sub' => 'google-subject-456',
+                'email' => 'user@example.com',
+                'email_verified' => true,
+                'name' => 'Mahala User',
+            ]),
+        ]);
+        $user = User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->postJson('/api/auth/google', [
+            'id_token' => 'valid-google-id-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id)
+            ->assertJsonPath('user.username', 'mahala_user');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'google_id' => 'google-subject-456',
+        ]);
     }
 }

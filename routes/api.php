@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/register-user', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/google', [AuthController::class, 'google']);
 Route::middleware('auth:sanctum')->get('auth/me', [AuthController::class, 'me']);
 Route::middleware('auth:sanctum')->patch('auth/profile', [AuthController::class, 'updateProfile']);
 Route::middleware('auth:sanctum')->post('auth/logout', [AuthController::class, 'logout']);

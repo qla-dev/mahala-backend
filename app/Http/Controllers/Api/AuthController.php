@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -59,6 +61,57 @@ class AuthController extends Controller
             'message' => 'Prijava je uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
+        ]);
+    }
+
+    public function google(Request $request)
+    {
+        $validated = $request->validate([
+            'id_token' => ['required', 'string'],
+        ]);
+
+        $googleUser = $this->verifyGoogleIdToken($validated['id_token']);
+        $email = $googleUser['email'] ?? null;
+        $googleId = $googleUser['sub'] ?? null;
+
+        if (!$email || !$googleId) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Google nalog nije vratio ispravan email.'],
+            ]);
+        }
+
+        $user = User::query()
+            ->where('google_id', $googleId)
+            ->orWhere('email', $email)
+            ->first();
+
+        if ($user) {
+            if ($user->google_id && $user->google_id !== $googleId) {
+                throw ValidationException::withMessages([
+                    'id_token' => ['Ovaj email je veÄ‡ povezan sa drugim Google nalogom.'],
+                ]);
+            }
+
+            $user->forceFill([
+                'google_id' => $user->google_id ?: $googleId,
+                'email_verified_at' => $user->email_verified_at ?: now(),
+            ])->save();
+        } else {
+            $name = trim((string) ($googleUser['name'] ?? '')) ?: Str::before($email, '@');
+            $user = User::query()->create([
+                'name' => $name,
+                'username' => $this->generateGoogleUsername($email, $name),
+                'email' => $email,
+                'google_id' => $googleId,
+                'email_verified_at' => now(),
+                'password' => Str::random(48),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Google prijava je uspjeÅ¡na.',
+            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => $this->formatUser($user->refresh()),
         ]);
     }
 
@@ -149,5 +202,60 @@ class AuthController extends Controller
                 'pro_ends_at' => $settings->pro_ends_at,
             ],
         ];
+    }
+
+    private function verifyGoogleIdToken(string $idToken): array
+    {
+        $clientIds = config('services.google.client_ids', []);
+
+        if ($clientIds === []) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Google prijava nije konfigurisana.'],
+            ]);
+        }
+
+        $response = Http::asJson()->get('https://oauth2.googleapis.com/tokeninfo', [
+            'id_token' => $idToken,
+        ]);
+
+        if (!$response->ok()) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Google token nije ispravan.'],
+            ]);
+        }
+
+        $payload = $response->json();
+
+        if (!in_array($payload['aud'] ?? null, $clientIds, true)) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Google token nije namijenjen ovoj aplikaciji.'],
+            ]);
+        }
+
+        if (($payload['email_verified'] ?? null) !== true && ($payload['email_verified'] ?? null) !== 'true') {
+            throw ValidationException::withMessages([
+                'id_token' => ['Google email nije verifikovan.'],
+            ]);
+        }
+
+        return $payload;
+    }
+
+    private function generateGoogleUsername(string $email, string $name): string
+    {
+        $base = Str::slug(Str::before($email, '@'), '_')
+            ?: Str::slug($name, '_')
+            ?: 'mahalac';
+        $base = Str::limit($base, 42, '');
+        $username = $base;
+        $counter = 1;
+
+        while (User::query()->where('username', $username)->exists()) {
+            $suffix = "_{$counter}";
+            $username = Str::limit($base, 50 - strlen($suffix), '') . $suffix;
+            $counter += 1;
+        }
+
+        return $username;
     }
 }
