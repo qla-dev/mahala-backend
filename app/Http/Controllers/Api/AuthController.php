@@ -84,6 +84,7 @@ class AuthController extends Controller
             ->where('google_id', $googleId)
             ->orWhere('email', $email)
             ->first();
+        $isNewUser = false;
 
         if ($user) {
             if ($user->google_id && $user->google_id !== $googleId) {
@@ -106,12 +107,14 @@ class AuthController extends Controller
                 'email_verified_at' => now(),
                 'password' => Str::random(48),
             ]);
+            $isNewUser = true;
         }
 
         return response()->json([
             'message' => 'Google prijava je uspjeÅ¡na.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user->refresh()),
+            'is_new_user' => $isNewUser,
         ]);
     }
 
@@ -139,6 +142,7 @@ class AuthController extends Controller
         }
 
         $user = $userQuery->first();
+        $isNewUser = false;
 
         if ($user) {
             if ($user->apple_id && $user->apple_id !== $appleId) {
@@ -167,12 +171,14 @@ class AuthController extends Controller
                 'email_verified_at' => now(),
                 'password' => Str::random(48),
             ]);
+            $isNewUser = true;
         }
 
         return response()->json([
             'message' => 'Apple prijava je uspjeÅ¡na.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user->refresh()),
+            'is_new_user' => $isNewUser,
         ]);
     }
 

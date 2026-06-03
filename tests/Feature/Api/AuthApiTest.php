@@ -116,6 +116,7 @@ class AuthApiTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonStructure(['message', 'token', 'user'])
+            ->assertJsonPath('is_new_user', true)
             ->assertJsonPath('user.email', 'google@example.com');
 
         $this->assertDatabaseHas('users', [
@@ -147,6 +148,7 @@ class AuthApiTest extends TestCase
             'id_token' => 'valid-google-id-token',
         ])
             ->assertOk()
+            ->assertJsonPath('is_new_user', false)
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.username', 'mahala_user');
 
