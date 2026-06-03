@@ -8,6 +8,8 @@ use App\Models\Post;
 use App\Models\Topic;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class StartupController extends Controller
@@ -46,11 +48,13 @@ class StartupController extends Controller
             $payload = $request->validate([
                 'mahala_ids' => ['required'],
                 'limit' => ['sometimes', 'integer', 'min:1', 'max:50'],
+                'sort' => ['sometimes', Rule::in(['recent', 'popular', 'commented'])],
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
             $scopeIds = $this->withParentTopicScopes($mahalaIds);
             $limit = (int) ($payload['limit'] ?? 10);
+            $sort = $payload['sort'] ?? 'recent';
 
             if ($scopeIds === []) {
                 return response()->json([
@@ -67,6 +71,7 @@ class StartupController extends Controller
             }
 
             $userId = $request->user('sanctum')?->id;
+            $engagementWindowStart = Carbon::now()->subDays(10);
 
             $topics = Topic::query()
                 ->whereIn('mahala_id', $scopeIds)
@@ -75,16 +80,33 @@ class StartupController extends Controller
                 ->get()
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
-            $paginatedPosts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()])
+            $postsQuery = Post::query()
+                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
-                ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
+                ->withCount([
+                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                    'comments as recent_comments_count' => fn ($query) => $query
+                        ->where('status', 1)
+                        ->where('created_at', '>=', $engagementWindowStart),
+                    'votes as recent_upvotes_count' => fn ($query) => $query
+                        ->where('value', 1)
+                        ->where('created_at', '>=', $engagementWindowStart),
+                ])
                 ->whereIn('mahala_id', $scopeIds)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
                 })
-                ->latest()
-                ->paginate($limit, ['*'], 'page', 1);
+                ->when(
+                    $sort === 'popular',
+                    fn ($query) => $query->orderByDesc('recent_upvotes_count')->latest(),
+                    fn ($query) => $query->when(
+                        $sort === 'commented',
+                        fn ($query) => $query->orderByDesc('recent_comments_count')->latest(),
+                        fn ($query) => $query->latest(),
+                    ),
+                );
+
+            $paginatedPosts = $postsQuery->paginate($limit, ['*'], 'page', 1);
 
             $posts = $paginatedPosts
                 ->getCollection()
@@ -175,7 +197,7 @@ class StartupController extends Controller
 
     private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->oldest()]);
+        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()

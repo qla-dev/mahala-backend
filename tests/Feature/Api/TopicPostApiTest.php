@@ -551,6 +551,180 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('meta.has_more', false);
     }
 
+    public function test_it_sorts_feed_posts_by_recent_engagement(): void
+    {
+        $mahala = $this->createMahala();
+        $users = User::factory()->count(6)->create();
+
+        $popularPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Popular recent post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+        $lessPopularPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Less popular recent post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        $oldPopularPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Old popular post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ($users->take(2) as $user) {
+            \App\Models\PostVote::query()->forceCreate([
+                'post_id' => $popularPost->id,
+                'user_id' => $user->id,
+                'value' => 1,
+                'created_at' => now()->subDays(2),
+                'updated_at' => now()->subDays(2),
+            ]);
+        }
+
+        \App\Models\PostVote::query()->forceCreate([
+            'post_id' => $lessPopularPost->id,
+            'user_id' => $users[2]->id,
+            'value' => 1,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        foreach ($users->slice(3) as $user) {
+            \App\Models\PostVote::query()->forceCreate([
+                'post_id' => $oldPopularPost->id,
+                'user_id' => $user->id,
+                'value' => 1,
+                'created_at' => now()->subDays(12),
+                'updated_at' => now()->subDays(12),
+            ]);
+        }
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}&sort=popular")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $popularPost->id);
+    }
+
+    public function test_it_sorts_feed_posts_by_recent_comment_count(): void
+    {
+        $mahala = $this->createMahala();
+
+        $mostCommentedPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Most commented recent post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+        $lessCommentedPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Less commented recent post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        $oldCommentedPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Old commented post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach (range(1, 2) as $index) {
+            \App\Models\Comment::query()->forceCreate([
+                'post_id' => $mostCommentedPost->id,
+                'content' => "Recent comment {$index}",
+                'is_anonymous' => true,
+                'status' => 1,
+                'created_at' => now()->subDays(2),
+                'updated_at' => now()->subDays(2),
+            ]);
+        }
+
+        \App\Models\Comment::query()->forceCreate([
+            'post_id' => $lessCommentedPost->id,
+            'content' => 'Single recent comment',
+            'is_anonymous' => true,
+            'status' => 1,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        foreach (range(1, 3) as $index) {
+            \App\Models\Comment::query()->forceCreate([
+                'post_id' => $oldCommentedPost->id,
+                'content' => "Old comment {$index}",
+                'is_anonymous' => true,
+                'status' => 1,
+                'created_at' => now()->subDays(12),
+                'updated_at' => now()->subDays(12),
+            ]);
+        }
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}&sort=commented")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $mostCommentedPost->id);
+    }
+
+    public function test_feed_returns_comments_newest_first(): void
+    {
+        $mahala = $this->createMahala();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Post with ordered comments',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        \App\Models\Comment::query()->forceCreate([
+            'post_id' => $post->id,
+            'content' => 'Old comment',
+            'is_anonymous' => true,
+            'status' => 1,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        $newComment = \App\Models\Comment::query()->forceCreate([
+            'post_id' => $post->id,
+            'content' => 'New comment',
+            'is_anonymous' => true,
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.comments.0.id', $newComment->id);
+    }
+
     public function test_it_loads_startup_topics_and_first_feed_page_for_current_mahalas(): void
     {
         $mahala = $this->createMahala();
@@ -586,6 +760,81 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('meta.posts.total', 12)
             ->assertJsonPath('meta.posts.last_page', 2)
             ->assertJsonPath('meta.posts.has_more', true);
+    }
+
+    public function test_startup_sorts_first_feed_page_by_requested_mode(): void
+    {
+        $mahala = $this->createMahala();
+        $users = User::factory()->count(3)->create();
+
+        Topic::query()->create([
+            'mahala_id' => $mahala->id,
+            'name' => 'Glavna',
+            'slug' => 'glavna',
+            'description' => 'Glavni lokalni tok za sve oko tebe',
+            'icon' => 'chatbubble-ellipses',
+            'is_system' => true,
+        ]);
+
+        $popularPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Startup popular post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+        $commentedPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Startup commented post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+        \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Startup newest post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ($users->take(2) as $user) {
+            \App\Models\PostVote::query()->forceCreate([
+                'post_id' => $popularPost->id,
+                'user_id' => $user->id,
+                'value' => 1,
+                'created_at' => now()->subDay(),
+                'updated_at' => now()->subDay(),
+            ]);
+        }
+
+        foreach (range(1, 2) as $index) {
+            \App\Models\Comment::query()->forceCreate([
+                'post_id' => $commentedPost->id,
+                'content' => "Startup recent comment {$index}",
+                'is_anonymous' => true,
+                'status' => 1,
+                'created_at' => now()->subDay(),
+                'updated_at' => now()->subDay(),
+            ]);
+        }
+
+        $this->getJson("/api/startup?mahala_ids={$mahala->id}&limit=10&sort=popular")
+            ->assertOk()
+            ->assertJsonPath('data.posts.0.id', $popularPost->id);
+
+        $this->getJson("/api/startup?mahala_ids={$mahala->id}&limit=10&sort=commented")
+            ->assertOk()
+            ->assertJsonPath('data.posts.0.id', $commentedPost->id);
     }
 
     public function test_topic_uses_default_icon_when_icon_is_not_supplied(): void

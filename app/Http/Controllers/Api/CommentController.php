@@ -26,7 +26,7 @@ class CommentController extends Controller
                 ->withVoteCounts()
                 ->where('post_id', $post)
                 ->where('status', 1)
-                ->oldest()
+                ->latest()
                 ->get()
                 ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
 
