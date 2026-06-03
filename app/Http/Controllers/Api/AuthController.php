@@ -115,6 +115,67 @@ class AuthController extends Controller
         ]);
     }
 
+    public function apple(Request $request)
+    {
+        $validated = $request->validate([
+            'identity_token' => ['required', 'string'],
+            'full_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $appleUser = $this->verifyAppleIdentityToken($validated['identity_token']);
+        $email = $appleUser['email'] ?? null;
+        $appleId = $appleUser['sub'] ?? null;
+
+        if (!$appleId) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple nalog nije vratio ispravan identifikator.'],
+            ]);
+        }
+
+        $userQuery = User::query()->where('apple_id', $appleId);
+
+        if ($email) {
+            $userQuery->orWhere('email', $email);
+        }
+
+        $user = $userQuery->first();
+
+        if ($user) {
+            if ($user->apple_id && $user->apple_id !== $appleId) {
+                throw ValidationException::withMessages([
+                    'identity_token' => ['Ovaj email je veÄ‡ povezan sa drugim Apple nalogom.'],
+                ]);
+            }
+
+            $user->forceFill([
+                'apple_id' => $user->apple_id ?: $appleId,
+                'email_verified_at' => $user->email_verified_at ?: now(),
+            ])->save();
+        } else {
+            if (!$email) {
+                throw ValidationException::withMessages([
+                    'identity_token' => ['Apple nalog nije vratio email za kreiranje profila.'],
+                ]);
+            }
+
+            $name = trim((string) ($validated['full_name'] ?? '')) ?: Str::before($email, '@');
+            $user = User::query()->create([
+                'name' => $name,
+                'username' => $this->generateGoogleUsername($email, $name),
+                'email' => $email,
+                'apple_id' => $appleId,
+                'email_verified_at' => now(),
+                'password' => Str::random(48),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Apple prijava je uspjeÅ¡na.',
+            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => $this->formatUser($user->refresh()),
+        ]);
+    }
+
     public function me(Request $request)
     {
         return response()->json([
@@ -239,6 +300,175 @@ class AuthController extends Controller
         }
 
         return $payload;
+    }
+
+    private function verifyAppleIdentityToken(string $identityToken): array
+    {
+        $clientIds = config('services.apple.client_ids', []);
+
+        if ($clientIds === []) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple prijava nije konfigurisana.'],
+            ]);
+        }
+
+        $parts = explode('.', $identityToken);
+
+        if (count($parts) !== 3) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token nije ispravan.'],
+            ]);
+        }
+
+        $header = json_decode($this->base64UrlDecode($parts[0]), true);
+        $payload = json_decode($this->base64UrlDecode($parts[1]), true);
+        $signature = $this->base64UrlDecode($parts[2]);
+
+        if (!is_array($header) || !is_array($payload) || ($header['alg'] ?? null) !== 'RS256') {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token nije ispravan.'],
+            ]);
+        }
+
+        $keysResponse = Http::asJson()->get('https://appleid.apple.com/auth/keys');
+
+        if (!$keysResponse->ok()) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple kljuÄevi nisu dostupni.'],
+            ]);
+        }
+
+        $key = collect($keysResponse->json('keys', []))->first(
+            fn (array $candidate) => ($candidate['kid'] ?? null) === ($header['kid'] ?? null),
+        );
+
+        if (!$key || !$this->verifyJwtSignature($parts[0] . '.' . $parts[1], $signature, $key)) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token nije ispravan.'],
+            ]);
+        }
+
+        if (($payload['iss'] ?? null) !== 'https://appleid.apple.com') {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token nije ispravan.'],
+            ]);
+        }
+
+        if (!in_array($payload['aud'] ?? null, $clientIds, true)) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token nije namijenjen ovoj aplikaciji.'],
+            ]);
+        }
+
+        if (($payload['exp'] ?? 0) < time()) {
+            throw ValidationException::withMessages([
+                'identity_token' => ['Apple token je istekao.'],
+            ]);
+        }
+
+        return $payload;
+    }
+
+    private function verifyJwtSignature(string $signedPayload, string $signature, array $jwk): bool
+    {
+        $pem = $this->jwkToPem($jwk);
+
+        if (!$pem) {
+            return false;
+        }
+
+        return openssl_verify($signedPayload, $signature, $pem, OPENSSL_ALGO_SHA256) === 1;
+    }
+
+    private function jwkToPem(array $jwk): ?string
+    {
+        if (($jwk['kty'] ?? null) !== 'RSA' || empty($jwk['n']) || empty($jwk['e'])) {
+            return null;
+        }
+
+        $modulus = $this->base64UrlDecode($jwk['n']);
+        $exponent = $this->base64UrlDecode($jwk['e']);
+
+        $components = $this->asn1Sequence([
+            $this->asn1Integer($modulus),
+            $this->asn1Integer($exponent),
+        ]);
+
+        return "-----BEGIN PUBLIC KEY-----\n"
+            . chunk_split(base64_encode($this->asn1Sequence([
+                $this->asn1Sequence([
+                    $this->asn1ObjectIdentifier('1.2.840.113549.1.1.1'),
+                    "\x05\x00",
+                ]),
+                $this->asn1BitString($components),
+            ])), 64, "\n")
+            . "-----END PUBLIC KEY-----\n";
+    }
+
+    private function base64UrlDecode(string $value): string
+    {
+        return base64_decode(strtr($value, '-_', '+/') . str_repeat('=', (4 - strlen($value) % 4) % 4)) ?: '';
+    }
+
+    private function asn1Length(int $length): string
+    {
+        if ($length < 128) {
+            return chr($length);
+        }
+
+        $bytes = '';
+
+        while ($length > 0) {
+            $bytes = chr($length & 0xff) . $bytes;
+            $length >>= 8;
+        }
+
+        return chr(0x80 | strlen($bytes)) . $bytes;
+    }
+
+    private function asn1Integer(string $value): string
+    {
+        $value = ltrim($value, "\x00");
+
+        if ($value === '' || (ord($value[0]) & 0x80)) {
+            $value = "\x00" . $value;
+        }
+
+        return "\x02" . $this->asn1Length(strlen($value)) . $value;
+    }
+
+    private function asn1Sequence(array $items): string
+    {
+        $value = implode('', $items);
+
+        return "\x30" . $this->asn1Length(strlen($value)) . $value;
+    }
+
+    private function asn1BitString(string $value): string
+    {
+        $value = "\x00" . $value;
+
+        return "\x03" . $this->asn1Length(strlen($value)) . $value;
+    }
+
+    private function asn1ObjectIdentifier(string $oid): string
+    {
+        $parts = array_map('intval', explode('.', $oid));
+        $value = chr($parts[0] * 40 + $parts[1]);
+
+        foreach (array_slice($parts, 2) as $part) {
+            $encoded = chr($part & 0x7f);
+            $part >>= 7;
+
+            while ($part > 0) {
+                $encoded = chr(0x80 | ($part & 0x7f)) . $encoded;
+                $part >>= 7;
+            }
+
+            $value .= $encoded;
+        }
+
+        return "\x06" . $this->asn1Length(strlen($value)) . $value;
     }
 
     private function generateGoogleUsername(string $email, string $name): string
