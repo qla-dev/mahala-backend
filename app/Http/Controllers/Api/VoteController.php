@@ -111,11 +111,17 @@ class VoteController extends Controller
         $settings = \App\Models\User::query()->find($userId)?->settings()->firstOrCreate([], [
             'notifications_app' => true,
             'notifications' => true,
+            'notifications_app_location' => true,
+            'notifications_app_comments' => true,
+            'notifications_app_votes' => true,
+            'notifications_location' => true,
+            'notifications_comments' => true,
+            'notifications_votes' => true,
             'locale' => 'bs',
             'pro_status' => 0,
         ]);
 
-        if (!$settings?->notifications_app) {
+        if (!$settings?->notifications_app || !$settings->notifications_app_votes) {
             return;
         }
 

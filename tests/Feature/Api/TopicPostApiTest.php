@@ -251,12 +251,21 @@ class TopicPostApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.notifications_app', true)
             ->assertJsonPath('data.notifications', true)
+            ->assertJsonPath('data.notifications_app_location', true)
+            ->assertJsonPath('data.notifications_app_comments', true)
+            ->assertJsonPath('data.notifications_app_votes', true)
+            ->assertJsonPath('data.notifications_location', true)
+            ->assertJsonPath('data.notifications_comments', true)
+            ->assertJsonPath('data.notifications_votes', true)
             ->assertJsonPath('data.locale', 'bs')
             ->assertJsonPath('data.pro_status', 0);
 
         $this->patchJson('/api/user-settings', [
             'notifications_app' => false,
             'notifications' => false,
+            'notifications_app_comments' => false,
+            'notifications_app_votes' => false,
+            'notifications_location' => false,
             'locale' => 'bs',
             'pro_status' => 1,
             'pro_started_at' => '2026-06-02 10:00:00',
@@ -265,12 +274,18 @@ class TopicPostApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.notifications_app', false)
             ->assertJsonPath('data.notifications', false)
+            ->assertJsonPath('data.notifications_app_comments', false)
+            ->assertJsonPath('data.notifications_app_votes', false)
+            ->assertJsonPath('data.notifications_location', false)
             ->assertJsonPath('data.pro_status', 1);
 
         $this->assertDatabaseHas('user_settings', [
             'user_id' => $user->id,
             'notifications_app' => false,
             'notifications' => false,
+            'notifications_app_comments' => false,
+            'notifications_app_votes' => false,
+            'notifications_location' => false,
             'locale' => 'bs',
             'pro_status' => 1,
         ]);
@@ -357,6 +372,38 @@ class TopicPostApiTest extends TestCase
         ]);
     }
 
+    public function test_comment_notifications_can_be_disabled_by_type(): void
+    {
+        $owner = User::factory()->create();
+        $commenter = User::factory()->create();
+        $owner->settings()->create([
+            'notifications_app' => true,
+            'notifications' => true,
+            'notifications_app_comments' => false,
+        ]);
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava bez comment notifikacije',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $commenter->id,
+            'content' => 'Novi komentar',
+            'is_anonymous' => false,
+        ])->assertCreated();
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $commenter->id,
+            'type' => 1,
+            'related_post_id' => $post->id,
+        ]);
+    }
+
     public function test_voting_on_someones_post_creates_notification_when_app_notifications_are_enabled(): void
     {
         $owner = User::factory()->create();
@@ -390,6 +437,37 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.0.type', 2)
             ->assertJsonPath('data.0.vote_value', -1)
             ->assertJsonPath('data.0.related_post_id', $post->id);
+    }
+
+    public function test_vote_notifications_can_be_disabled_by_type(): void
+    {
+        $owner = User::factory()->create();
+        $voter = User::factory()->create();
+        $owner->settings()->create([
+            'notifications_app' => true,
+            'notifications' => true,
+            'notifications_app_votes' => false,
+        ]);
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava bez vote notifikacije',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        Sanctum::actingAs($voter);
+
+        $this->postJson("/api/posts/{$post->id}/vote", ['value' => 1])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $voter->id,
+            'type' => 2,
+            'related_post_id' => $post->id,
+        ]);
     }
 
     public function test_authenticated_user_can_bulk_see_notifications(): void

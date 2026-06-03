@@ -245,6 +245,12 @@ class AuthController extends Controller
         $settings = $user->settings()->firstOrCreate([], [
             'notifications_app' => true,
             'notifications' => true,
+            'notifications_app_location' => true,
+            'notifications_app_comments' => true,
+            'notifications_app_votes' => true,
+            'notifications_location' => true,
+            'notifications_comments' => true,
+            'notifications_votes' => true,
             'locale' => 'bs',
             'pro_status' => UserSetting::PRO_INACTIVE,
         ]);
@@ -257,6 +263,12 @@ class AuthController extends Controller
             'settings' => [
                 'notifications_app' => $settings->notifications_app,
                 'notifications' => $settings->notifications,
+                'notifications_app_location' => $settings->notifications_app_location,
+                'notifications_app_comments' => $settings->notifications_app_comments,
+                'notifications_app_votes' => $settings->notifications_app_votes,
+                'notifications_location' => $settings->notifications_location,
+                'notifications_comments' => $settings->notifications_comments,
+                'notifications_votes' => $settings->notifications_votes,
                 'locale' => $settings->locale,
                 'pro_status' => $settings->pro_status,
                 'pro_started_at' => $settings->pro_started_at,

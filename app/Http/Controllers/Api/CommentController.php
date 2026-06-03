@@ -113,12 +113,20 @@ class CommentController extends Controller
             return;
         }
 
-        if (!$post->author?->settings()->firstOrCreate([], [
+        $settings = $post->author?->settings()->firstOrCreate([], [
             'notifications_app' => true,
             'notifications' => true,
+            'notifications_app_location' => true,
+            'notifications_app_comments' => true,
+            'notifications_app_votes' => true,
+            'notifications_location' => true,
+            'notifications_comments' => true,
+            'notifications_votes' => true,
             'locale' => 'bs',
             'pro_status' => 0,
-        ])->notifications_app) {
+        ]);
+
+        if (!$settings?->notifications_app || !$settings->notifications_app_comments) {
             return;
         }
 
