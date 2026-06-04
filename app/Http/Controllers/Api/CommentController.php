@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\Notification;
 use App\Models\Post;
+use App\Services\ExpoPushNotificationService;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
@@ -130,7 +131,7 @@ class CommentController extends Controller
             return;
         }
 
-        Notification::query()->create([
+        $notification = Notification::query()->create([
             'user_id' => $post->author_user_id,
             'from_user_id' => $comment->is_anonymous ? null : $comment->author,
             'type' => Notification::TYPE_COMMENT,
@@ -139,6 +140,8 @@ class CommentController extends Controller
             'related_post_id' => $post->id,
             'related_comment_id' => $comment->id,
         ]);
+
+        app(ExpoPushNotificationService::class)->sendNotification($notification);
     }
 
     private function formatComment(Comment $comment, ?int $userId = null): array

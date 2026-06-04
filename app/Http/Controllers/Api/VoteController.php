@@ -8,6 +8,7 @@ use App\Models\CommentVote;
 use App\Models\Notification;
 use App\Models\Post;
 use App\Models\PostVote;
+use App\Services\ExpoPushNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -125,7 +126,7 @@ class VoteController extends Controller
             return;
         }
 
-        Notification::query()->create([
+        $notification = Notification::query()->create([
             'user_id' => $userId,
             'from_user_id' => $fromUserId,
             'type' => Notification::TYPE_VOTE,
@@ -135,6 +136,8 @@ class VoteController extends Controller
             'related_post_id' => $relatedPostId,
             'related_comment_id' => $relatedCommentId,
         ]);
+
+        app(ExpoPushNotificationService::class)->sendNotification($notification);
     }
 
     private function commentVoteSummary(Comment $comment, int $userId): array

@@ -26,7 +26,7 @@ return [
     'string' => 'Polje :attribute mora biti tekst.',
     'unique' => 'Vrijednost za :attribute je vec zauzeta.',
     'attributes' => [
-        'username' => 'korisnicko ime',
+        'username' => 'korisničko ime',
         'email' => 'email',
         'password' => 'lozinka',
         'current_password' => 'trenutna lozinka',

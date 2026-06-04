@@ -98,7 +98,7 @@ class UserSettingController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Korisnicke postavke su uspjesno azurirane.',
+            'message' => 'Korisničke postavke su uspjesno ažurirane.',
             'data' => $this->formatSettings($settings),
         ]);
     }

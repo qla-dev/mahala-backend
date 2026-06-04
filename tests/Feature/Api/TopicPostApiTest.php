@@ -3,9 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Mahala;
+use App\Models\PushToken;
 use App\Models\Topic;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -291,6 +293,40 @@ class TopicPostApiTest extends TestCase
         ]);
     }
 
+    public function test_authenticated_user_can_register_expo_push_token(): void
+    {
+        $user = User::factory()->create();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/push-tokens', [
+            'token' => 'ExponentPushToken[test-token]',
+            'provider' => 'expo',
+            'platform' => 'android',
+            'notification_channel_id' => 'mahala-notifications',
+            'sound' => 'new-notification.mp3',
+            'preferences' => [
+                'app' => true,
+                'comments' => true,
+                'votes' => false,
+                'location' => true,
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.provider', 'expo')
+            ->assertJsonPath('data.platform', 'android');
+
+        $this->assertDatabaseHas('push_tokens', [
+            'user_id' => $user->id,
+            'token' => 'ExponentPushToken[test-token]',
+            'provider' => 'expo',
+            'platform' => 'android',
+            'notification_channel_id' => 'mahala-notifications',
+            'sound' => 'new-notification.mp3',
+            'disabled_at' => null,
+        ]);
+    }
+
     public function test_authenticated_user_can_change_password(): void
     {
         $user = User::factory()->create([
@@ -370,6 +406,57 @@ class TopicPostApiTest extends TestCase
             'type' => 1,
             'related_post_id' => $post->id,
         ]);
+    }
+
+    public function test_commenting_on_someones_post_sends_expo_push_to_registered_tokens(): void
+    {
+        Http::fake([
+            'https://exp.host/--/api/v2/push/send' => Http::response([
+                'data' => [
+                    ['status' => 'ok', 'id' => 'expo-ticket-id'],
+                ],
+            ]),
+        ]);
+
+        $owner = User::factory()->create();
+        $commenter = User::factory()->create(['username' => 'komentator']);
+        PushToken::query()->create([
+            'user_id' => $owner->id,
+            'token' => 'ExponentPushToken[owner-token]',
+            'provider' => 'expo',
+            'platform' => 'android',
+            'notification_channel_id' => 'mahala-notifications',
+            'sound' => 'new-notification.mp3',
+            'preferences' => [
+                'app' => true,
+                'comments' => true,
+                'votes' => true,
+            ],
+        ]);
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava za push',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $commenter->id,
+            'content' => 'Novi push komentar',
+            'is_anonymous' => false,
+        ])->assertCreated();
+
+        Http::assertSent(function ($request) {
+            $payload = $request->data()[0] ?? [];
+
+            return $request->url() === 'https://exp.host/--/api/v2/push/send'
+                && $payload['to'] === 'ExponentPushToken[owner-token]'
+                && $payload['title'] === 'Novi komentar'
+                && $payload['channelId'] === 'mahala-notifications'
+                && $payload['data']['type'] === 'notification';
+        });
     }
 
     public function test_comment_notifications_can_be_disabled_by_type(): void
