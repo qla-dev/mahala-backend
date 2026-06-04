@@ -36,6 +36,11 @@ return [
         ))),
     ],
 
+    'revenuecat' => [
+        'secret_api_key' => env('REVENUECAT_SECRET_API_KEY'),
+        'pro_entitlement_id' => env('REVENUECAT_PRO_ENTITLEMENT_ID', 'pro'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

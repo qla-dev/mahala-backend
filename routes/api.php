@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PushTokenController;
+use App\Http\Controllers\Api\RevenueCatController;
 use App\Http\Controllers\Api\StartupController;
 use App\Http\Controllers\Api\TopicController;
 use App\Http\Controllers\Api\AuthController;
@@ -26,6 +27,7 @@ Route::middleware('auth:sanctum')->patch('user-settings', [UserSettingController
 Route::middleware('auth:sanctum')->get('notifications', [NotificationController::class, 'index']);
 Route::middleware('auth:sanctum')->post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
 Route::middleware('auth:sanctum')->post('push-tokens', [PushTokenController::class, 'store']);
+Route::middleware('auth:sanctum')->post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
 
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
 Route::apiResource('mahalas', MahalaController::class);

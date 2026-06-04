@@ -327,6 +327,43 @@ class TopicPostApiTest extends TestCase
         ]);
     }
 
+    public function test_authenticated_user_can_sync_revenuecat_pro_entitlement(): void
+    {
+        config([
+            'services.revenuecat.secret_api_key' => 'rc_secret_test',
+            'services.revenuecat.pro_entitlement_id' => 'pro',
+        ]);
+
+        $user = User::factory()->create();
+
+        Http::fake([
+            "https://api.revenuecat.com/v1/subscribers/mahala-user-{$user->id}" => Http::response([
+                'subscriber' => [
+                    'entitlements' => [
+                        'pro' => [
+                            'product_identifier' => 'mahala_pro_yearly',
+                            'purchase_date' => '2026-06-05T10:00:00Z',
+                            'expires_date' => now()->addYear()->toIso8601String(),
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/revenuecat/sync-pro')
+            ->assertOk()
+            ->assertJsonPath('data.app_user_id', "mahala-user-{$user->id}")
+            ->assertJsonPath('data.active', true)
+            ->assertJsonPath('data.settings.pro_status', 2);
+
+        $this->assertDatabaseHas('user_settings', [
+            'user_id' => $user->id,
+            'pro_status' => 2,
+        ]);
+    }
+
     public function test_authenticated_user_can_change_password(): void
     {
         $user = User::factory()->create([
