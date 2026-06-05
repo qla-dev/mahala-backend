@@ -124,8 +124,16 @@ class RevenueCatController extends Controller
     private function planForEntitlement(array $entitlement): string
     {
         $productId = strtolower((string) ($entitlement['product_identifier'] ?? ''));
+        $normalizedProductId = str_replace(
+            ['š', 'đ', 'č', 'ć', 'ž'],
+            ['s', 'd', 'c', 'c', 'z'],
+            $productId,
+        );
 
-        return str_contains($productId, 'year') || str_contains($productId, 'annual')
+        return str_contains($normalizedProductId, 'year')
+            || str_contains($normalizedProductId, 'annual')
+            || str_contains($normalizedProductId, 'godisnje')
+            || str_contains($normalizedProductId, 'godisnji')
             ? 'yearly'
             : 'monthly';
     }
