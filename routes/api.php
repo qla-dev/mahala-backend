@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\LocationDebugReportController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\RevenueCatController;
@@ -28,6 +29,7 @@ Route::middleware('auth:sanctum')->get('notifications', [NotificationController:
 Route::middleware('auth:sanctum')->post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
 Route::middleware('auth:sanctum')->post('push-tokens', [PushTokenController::class, 'store']);
 Route::middleware('auth:sanctum')->post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
+Route::middleware('auth:sanctum')->post('location-debug-reports', [LocationDebugReportController::class, 'store']);
 
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
 Route::apiResource('mahalas', MahalaController::class);
