@@ -33,7 +33,16 @@ class RevenueCatController extends Controller
             ], 502);
         }
 
-        $entitlement = $response->json("subscriber.entitlements.{$entitlementId}");
+        $entitlements = $response->json('subscriber.entitlements') ?: [];
+        $entitlement = $entitlements[$entitlementId] ?? $this->firstActiveEntitlement($entitlements);
+        $resolvedEntitlementId = $entitlementId;
+
+        if (!isset($entitlements[$entitlementId])) {
+            $matchedEntitlementId = array_search($entitlement, $entitlements, true);
+            $resolvedEntitlementId = is_string($matchedEntitlementId)
+                ? $matchedEntitlementId
+                : $entitlementId;
+        }
         $isActive = $this->entitlementIsActive($entitlement);
         $settings = $user->settings()->firstOrCreate([], [
             'notifications_app' => true,
@@ -66,7 +75,7 @@ class RevenueCatController extends Controller
         return response()->json([
             'data' => [
                 'app_user_id' => $appUserId,
-                'entitlement_id' => $entitlementId,
+                'entitlement_id' => $resolvedEntitlementId ?: $entitlementId,
                 'active' => $isActive,
                 'settings' => [
                     'id' => $settings->id,
@@ -99,6 +108,17 @@ class RevenueCatController extends Controller
         $expiresAt = $entitlement['expires_date'] ?? null;
 
         return !$expiresAt || now()->lt($expiresAt);
+    }
+
+    private function firstActiveEntitlement(array $entitlements): ?array
+    {
+        foreach ($entitlements as $entitlement) {
+            if (is_array($entitlement) && $this->entitlementIsActive($entitlement)) {
+                return $entitlement;
+            }
+        }
+
+        return null;
     }
 
     private function planForEntitlement(array $entitlement): string
