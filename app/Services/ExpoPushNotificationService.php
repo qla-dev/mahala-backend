@@ -16,7 +16,9 @@ class ExpoPushNotificationService
         try {
             $notification->loadMissing(['fromUser', 'relatedPost', 'relatedComment']);
 
-            $category = $notification->type === Notification::TYPE_COMMENT ? 'comments' : 'votes';
+            $category = in_array($notification->type, [Notification::TYPE_COMMENT, Notification::TYPE_COMMENT_REPLY], true)
+                ? 'comments'
+                : 'votes';
             $tokens = PushToken::query()
                 ->where('user_id', $notification->user_id)
                 ->where('provider', 'expo')
@@ -92,7 +94,9 @@ class ExpoPushNotificationService
     {
         return $notification->type === Notification::TYPE_COMMENT
             ? 'Novi komentar'
-            : 'Novi glas';
+            : ($notification->type === Notification::TYPE_COMMENT_REPLY
+                ? 'Novi odgovor'
+                : 'Novi glas');
     }
 
     private function bodyFor(Notification $notification): string
@@ -103,6 +107,10 @@ class ExpoPushNotificationService
 
         if ($notification->type === Notification::TYPE_COMMENT) {
             return "{$actor} je komentarisao/la tvoju objavu.";
+        }
+
+        if ($notification->type === Notification::TYPE_COMMENT_REPLY) {
+            return "{$actor} je odgovorio/la na tvoj komentar.";
         }
 
         $target = $notification->related_comment_id ? 'komentar' : 'objavu';

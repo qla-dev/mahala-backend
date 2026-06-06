@@ -12,6 +12,7 @@ class Notification extends Model
 
     public const TYPE_COMMENT = 1;
     public const TYPE_VOTE = 2;
+    public const TYPE_COMMENT_REPLY = 4;
 
     protected $fillable = [
         'user_id',

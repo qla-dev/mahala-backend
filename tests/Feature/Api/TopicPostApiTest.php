@@ -528,6 +528,122 @@ class TopicPostApiTest extends TestCase
         });
     }
 
+    public function test_replying_to_someones_comment_creates_comment_reply_notification_and_push(): void
+    {
+        Http::fake([
+            'https://exp.host/--/api/v2/push/send' => Http::response([
+                'data' => [
+                    ['status' => 'ok', 'id' => 'expo-ticket-id'],
+                ],
+            ]),
+        ]);
+
+        $postOwner = User::factory()->create();
+        $commentOwner = User::factory()->create();
+        $replier = User::factory()->create(['username' => 'odgovor']);
+        PushToken::query()->create([
+            'user_id' => $commentOwner->id,
+            'token' => 'ExponentPushToken[parent-comment-owner]',
+            'provider' => 'expo',
+            'platform' => 'android',
+            'notification_channel_id' => 'mahala-notifications',
+            'sound' => 'new-notification.mp3',
+            'preferences' => [
+                'app' => true,
+                'comments' => true,
+                'votes' => false,
+            ],
+        ]);
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $postOwner->id,
+            'content' => 'Objava za reply',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+        $parentComment = \App\Models\Comment::query()->create([
+            'post_id' => $post->id,
+            'author' => $commentOwner->id,
+            'content' => 'Moj komentar',
+            'is_anonymous' => false,
+            'status' => 1,
+        ]);
+
+        $response = $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $replier->id,
+            'parent_id' => $parentComment->id,
+            'content' => 'Odgovor na komentar',
+            'is_anonymous' => false,
+        ])->assertCreated();
+
+        $replyId = $response->json('data.id');
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $commentOwner->id,
+            'from_user_id' => $replier->id,
+            'type' => 4,
+            'title' => 'comment_reply',
+            'body' => 'comment_reply',
+            'related_post_id' => $post->id,
+            'related_comment_id' => $replyId,
+        ]);
+
+        Http::assertSent(function ($request) use ($replyId, $post) {
+            $payload = $request->data()[0] ?? [];
+
+            return $request->url() === 'https://exp.host/--/api/v2/push/send'
+                && $payload['to'] === 'ExponentPushToken[parent-comment-owner]'
+                && $payload['title'] === 'Novi odgovor'
+                && $payload['body'] === '@odgovor je odgovorio/la na tvoj komentar.'
+                && $payload['data']['notificationType'] === 4
+                && $payload['data']['relatedPostId'] === $post->id
+                && $payload['data']['relatedCommentId'] === $replyId;
+        });
+    }
+
+    public function test_reply_to_post_authors_own_comment_creates_only_comment_reply_notification(): void
+    {
+        $owner = User::factory()->create();
+        $replier = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'author_user_id' => $owner->id,
+            'content' => 'Objava vlasnika',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+        $parentComment = \App\Models\Comment::query()->create([
+            'post_id' => $post->id,
+            'author' => $owner->id,
+            'content' => 'Komentar vlasnika',
+            'is_anonymous' => false,
+            'status' => 1,
+        ]);
+
+        $this->postJson("/api/posts/{$post->id}/comments", [
+            'author_user_id' => $replier->id,
+            'parent_id' => $parentComment->id,
+            'content' => 'Odgovor vlasniku',
+            'is_anonymous' => false,
+        ])->assertCreated();
+
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $replier->id,
+            'type' => 4,
+            'related_post_id' => $post->id,
+        ]);
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $owner->id,
+            'from_user_id' => $replier->id,
+            'type' => 1,
+            'related_post_id' => $post->id,
+        ]);
+    }
+
     public function test_comment_notifications_can_be_disabled_by_type(): void
     {
         $owner = User::factory()->create();

@@ -62,6 +62,7 @@ class CommentController extends Controller
             ]);
 
             $parentId = $validated['parent_id'] ?? null;
+            $parent = null;
 
             if ($parentId !== null) {
                 $parent = Comment::query()->findOrFail($parentId);
@@ -82,7 +83,7 @@ class CommentController extends Controller
                 'status' => $validated['status'] ?? 1,
             ]);
             $comment->load('authorUser');
-            $this->createCommentNotification($postModel, $comment);
+            $this->createCommentNotifications($postModel, $comment, $parent);
 
             return response()->json([
                 'message' => 'Komentar je uspjesno kreiran.',
@@ -108,7 +109,18 @@ class CommentController extends Controller
         }
     }
 
-    private function createCommentNotification(Post $post, Comment $comment): void
+    private function createCommentNotifications(Post $post, Comment $comment, ?Comment $parent): void
+    {
+        $this->createCommentReplyNotification($post, $comment, $parent);
+
+        if ($parent && $post->author_user_id && (string) $post->author_user_id === (string) $parent->author) {
+            return;
+        }
+
+        $this->createPostCommentNotification($post, $comment);
+    }
+
+    private function createPostCommentNotification(Post $post, Comment $comment): void
     {
         if (!$post->author_user_id || (string) $post->author_user_id === (string) $comment->author) {
             return;
@@ -137,6 +149,42 @@ class CommentController extends Controller
             'type' => Notification::TYPE_COMMENT,
             'title' => 'comment',
             'body' => 'post_comment',
+            'related_post_id' => $post->id,
+            'related_comment_id' => $comment->id,
+        ]);
+
+        app(ExpoPushNotificationService::class)->sendNotification($notification);
+    }
+
+    private function createCommentReplyNotification(Post $post, Comment $comment, ?Comment $parent): void
+    {
+        if (!$parent?->author || (string) $parent->author === (string) $comment->author) {
+            return;
+        }
+
+        $settings = $parent->authorUser?->settings()->firstOrCreate([], [
+            'notifications_app' => true,
+            'notifications' => true,
+            'notifications_app_location' => true,
+            'notifications_app_comments' => true,
+            'notifications_app_votes' => true,
+            'notifications_location' => true,
+            'notifications_comments' => true,
+            'notifications_votes' => true,
+            'locale' => 'bs',
+            'pro_status' => 0,
+        ]);
+
+        if (!$settings?->notifications_app || !$settings->notifications_app_comments) {
+            return;
+        }
+
+        $notification = Notification::query()->create([
+            'user_id' => $parent->author,
+            'from_user_id' => $comment->is_anonymous ? null : $comment->author,
+            'type' => Notification::TYPE_COMMENT_REPLY,
+            'title' => 'comment_reply',
+            'body' => 'comment_reply',
             'related_post_id' => $post->id,
             'related_comment_id' => $comment->id,
         ]);
