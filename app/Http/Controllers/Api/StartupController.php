@@ -81,7 +81,10 @@ class StartupController extends Controller
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
             $postsQuery = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
+                ->with([
+                    'author',
+                    'comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest(),
+                ])
                 ->withVoteCounts()
                 ->withCount([
                     'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
@@ -197,7 +200,10 @@ class StartupController extends Controller
 
     private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()]);
+        $post->loadMissing([
+            'author',
+            'comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest(),
+        ]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
@@ -209,6 +215,7 @@ class StartupController extends Controller
             'id' => $post->id,
             'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
+            'author_username' => $post->author?->username,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
             'color_hex' => $this->resolveMahalaColor($post->mahala_id),
