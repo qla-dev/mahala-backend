@@ -43,8 +43,8 @@ return [
 
     'post_ai_moderation' => [
         'enabled' => filter_var(env('POST_AI_MODERATION_ENABLED', false), FILTER_VALIDATE_BOOL),
-        'text_model' => env('POST_AI_MODERATION_TEXT_MODEL', 'google/gemini-flash-1.5-8b'),
-        'vision_model' => env('POST_AI_MODERATION_VISION_MODEL', 'google/gemini-2.0-flash-001'),
+        'text_model' => env('POST_AI_MODERATION_TEXT_MODEL', 'google/gemini-2.5-flash'),
+        'vision_model' => env('POST_AI_MODERATION_VISION_MODEL', 'google/gemini-2.5-flash'),
         'timeout' => (int) env('POST_AI_MODERATION_TIMEOUT', 45),
     ],
 
