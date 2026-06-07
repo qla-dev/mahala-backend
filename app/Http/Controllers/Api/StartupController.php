@@ -96,6 +96,7 @@ class StartupController extends Controller
                         ->where('created_at', '>=', $engagementWindowStart),
                 ])
                 ->whereIn('mahala_id', $scopeIds)
+                ->where('status', 1)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
                 })

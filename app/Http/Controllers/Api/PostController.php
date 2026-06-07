@@ -74,6 +74,7 @@ class PostController extends Controller
                         ->where('created_at', '>=', $engagementWindowStart),
                 ])
                 ->whereIn('mahala_id', $feedScopeIds)
+                ->where('status', 1)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
                 })
@@ -126,6 +127,7 @@ class PostController extends Controller
                     $this->normalizeTopicId($request->query('channel_id'), $request->query('mahala_id')),
                 ))
                 ->when($request->filled('mahala_id'), fn ($query) => $query->where('mahala_id', $request->query('mahala_id')))
+                ->where('status', 1)
                 ->latest()
                 ->get()
                 ->map(fn (Post $post) => $this->formatPost($post, $userId));

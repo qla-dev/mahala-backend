@@ -11,6 +11,9 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -74,6 +77,13 @@ class CommentController extends Controller
                 }
             }
 
+            $this->commentAiCheck($validated['content'], [
+                'post_id' => $post,
+                'parent_id' => $parentId,
+                'mahala_id' => $postModel->mahala_id,
+                'topic_id' => $postModel->topic_id,
+            ]);
+
             $comment = Comment::query()->create([
                 'post_id' => $post,
                 'parent_id' => $parentId,
@@ -83,7 +93,10 @@ class CommentController extends Controller
                 'status' => $validated['status'] ?? 1,
             ]);
             $comment->load('authorUser');
-            $this->createCommentNotifications($postModel, $comment, $parent);
+
+            if ((int) $comment->status === 1) {
+                $this->createCommentNotifications($postModel, $comment, $parent);
+            }
 
             return response()->json([
                 'message' => 'Komentar je uspjesno kreiran.',
@@ -107,6 +120,168 @@ class CommentController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function commentAiCheck(string $content, array $context = []): void
+    {
+        if (!config('services.post_ai_moderation.enabled')) {
+            Log::info('[MAHALA][comment-ai] moderation skipped because it is disabled');
+
+            return;
+        }
+
+        $apiKey = trim((string) config('services.openrouter.api_key'));
+
+        if ($apiKey === '') {
+            Log::warning('[MAHALA][comment-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
+
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $model = trim((string) config('services.post_ai_moderation.text_model', 'google/gemini-2.5-flash'));
+        $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+        $client = Http::withToken($apiKey)
+            ->timeout((int) config('services.post_ai_moderation.timeout', 45))
+            ->acceptJson()
+            ->asJson();
+        $headers = array_filter([
+            'HTTP-Referer' => trim((string) config('services.openrouter.http_referer')),
+            'X-Title' => trim((string) config('services.openrouter.title')),
+        ], fn ($value) => $value !== '');
+
+        if ($headers !== []) {
+            $client = $client->withHeaders($headers);
+        }
+
+        $response = $client->post($baseUrl.'/chat/completions', [
+            'model' => $model,
+            'temperature' => 0,
+            'provider' => [
+                'require_parameters' => true,
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'mahala_comment_moderation',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'required' => ['allowed', 'reason'],
+                        'properties' => [
+                            'allowed' => ['type' => 'boolean'],
+                            'reason' => ['type' => 'string'],
+                        ],
+                    ],
+                ],
+            ],
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $this->commentModerationPrompt(),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => json_encode([
+                        'content' => $content,
+                        'context' => $context,
+                    ], JSON_UNESCAPED_UNICODE),
+                ],
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('[MAHALA][comment-ai] OpenRouter moderation request failed', [
+                'status' => $response->status(),
+                'model' => $model,
+                'body' => Str::limit($response->body(), 2000),
+            ]);
+
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $moderationText = $this->extractModerationText($response->json() ?: []);
+        $payload = json_decode($moderationText, true);
+
+        if (!is_array($payload) || !array_key_exists('allowed', $payload)) {
+            Log::warning('[MAHALA][comment-ai] OpenRouter moderation response was not valid JSON', [
+                'model' => $model,
+                'content' => Str::limit($moderationText, 2000),
+            ]);
+
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        if (!$payload['allowed']) {
+            Log::info('[MAHALA][comment-ai] comment rejected by moderation', [
+                'reason' => Str::limit((string) ($payload['reason'] ?? ''), 500),
+                'model' => $model,
+            ]);
+
+            throw ValidationException::withMessages([
+                'content' => [$payload['reason'] ?: 'Komentar nije prosao sigurnosnu provjeru.'],
+            ]);
+        }
+    }
+
+    private function extractModerationText(array $response): string
+    {
+        $content = data_get($response, 'choices.0.message.content');
+
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
+        }
+
+        if (is_array($content)) {
+            $chunks = [];
+
+            foreach ($content as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    $chunks[] = trim($item);
+                    continue;
+                }
+
+                if (is_array($item) && trim((string) ($item['text'] ?? '')) !== '') {
+                    $chunks[] = trim((string) $item['text']);
+                }
+            }
+
+            $text = trim(implode("\n", $chunks));
+
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function commentModerationPrompt(): string
+    {
+        return <<<'PROMPT'
+You are MAHALA's comment safety moderator for Bosnia and Herzegovina local community replies.
+
+Return strict JSON only: {"allowed": boolean, "reason": string}.
+
+Allow:
+- Ordinary replies, local disagreement, jokes, sarcasm, gossip, and mild slang.
+- Heated but non-threatening conversation.
+
+Reject:
+- Direct threats, calls for violence, instructions for harm, doxxing, stalking, blackmail, or credible harassment.
+- Hate or nationalism targeting ethnicity, nationality, religion, race, gender, sexuality, disability, or similar protected groups.
+- Severe profanity aimed at a person or group, dehumanizing insults, or abusive slurs.
+- Explicit sexual content involving minors, sexual coercion, or non-consensual intimate content.
+- Illegal sales or instructions for weapons, hard drugs, fraud, or other serious crime.
+
+If rejecting, write a short Bosnian reason suitable for showing to the user. If allowed, reason can be "OK".
+PROMPT;
     }
 
     private function createCommentNotifications(Post $post, Comment $comment, ?Comment $parent): void
