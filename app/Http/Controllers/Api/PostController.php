@@ -291,7 +291,7 @@ class PostController extends Controller
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
             'image_uri' => ['sometimes', 'nullable', 'string'],
-            'image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:20480'],
+            'image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:51200'],
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
             'hidden' => ['sometimes', 'nullable', 'boolean'],
