@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
+use App\Models\Mahala;
 use App\Models\Post;
 use App\Models\Topic;
 use Exception;
@@ -46,7 +47,8 @@ class PostController extends Controller
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
-            $feedScopeIds = $this->withParentTopicScopes($mahalaIds);
+            $publishedMahalaIds = $this->publishedMahalaIds($mahalaIds);
+            $feedScopeIds = $this->withParentTopicScopes($publishedMahalaIds);
             $page = (int) ($payload['page'] ?? 1);
             $limit = (int) ($payload['limit'] ?? 10);
             $sort = $payload['sort'] ?? 'recent';
@@ -116,6 +118,9 @@ class PostController extends Controller
     {
         try {
             $userId = $request->user('sanctum')?->id;
+            $publishedMahalaIds = $request->filled('mahala_id')
+                ? $this->publishedMahalaIds([(string) $request->query('mahala_id')])
+                : null;
 
             $posts = Post::query()
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
@@ -126,7 +131,11 @@ class PostController extends Controller
                     'topic_id',
                     $this->normalizeTopicId($request->query('channel_id'), $request->query('mahala_id')),
                 ))
-                ->when($request->filled('mahala_id'), fn ($query) => $query->where('mahala_id', $request->query('mahala_id')))
+                ->when(
+                    $request->filled('mahala_id'),
+                    fn ($query) => $query->whereIn('mahala_id', $publishedMahalaIds),
+                    fn ($query) => $query->whereHas('mahala', fn ($mahalaQuery) => $mahalaQuery->where('status', 'published')),
+                )
                 ->where('status', 1)
                 ->latest()
                 ->get()
@@ -185,6 +194,7 @@ class PostController extends Controller
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
+                ->whereHas('mahala', fn ($query) => $query->where('status', 'published'))
                 ->findOrFail($id);
 
             return response()->json([
@@ -655,6 +665,20 @@ PROMPT;
         return $scopeIds
             ->unique()
             ->values()
+            ->all();
+    }
+
+    private function publishedMahalaIds(array $mahalaIds): array
+    {
+        if ($mahalaIds === []) {
+            return [];
+        }
+
+        return Mahala::query()
+            ->whereIn('id', $mahalaIds)
+            ->where('status', 'published')
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
             ->all();
     }
 

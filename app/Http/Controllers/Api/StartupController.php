@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
+use App\Models\Mahala;
 use App\Models\Post;
 use App\Models\Topic;
 use Exception;
@@ -52,7 +53,8 @@ class StartupController extends Controller
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
-            $scopeIds = $this->withParentTopicScopes($mahalaIds);
+            $publishedMahalaIds = $this->publishedMahalaIds($mahalaIds);
+            $scopeIds = $this->withParentTopicScopes($publishedMahalaIds);
             $limit = (int) ($payload['limit'] ?? 10);
             $sort = $payload['sort'] ?? 'recent';
 
@@ -64,6 +66,7 @@ class StartupController extends Controller
                     ],
                     'meta' => [
                         'mahala_ids' => $mahalaIds,
+                        'published_mahala_ids' => $publishedMahalaIds,
                         'scope_ids' => $scopeIds,
                         'posts' => $this->paginationMeta(0, 1, $limit),
                     ],
@@ -123,6 +126,7 @@ class StartupController extends Controller
                 ],
                 'meta' => [
                     'mahala_ids' => $mahalaIds,
+                    'published_mahala_ids' => $publishedMahalaIds,
                     'scope_ids' => $scopeIds,
                     'posts' => $this->paginationMeta(
                         $paginatedPosts->total(),
@@ -164,6 +168,20 @@ class StartupController extends Controller
         return $scopeIds
             ->unique()
             ->values()
+            ->all();
+    }
+
+    private function publishedMahalaIds(array $mahalaIds): array
+    {
+        if ($mahalaIds === []) {
+            return [];
+        }
+
+        return Mahala::query()
+            ->whereIn('id', $mahalaIds)
+            ->where('status', 'published')
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
             ->all();
     }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Mahala;
 use App\Models\Topic;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -64,7 +65,8 @@ class TopicController extends Controller
             ]);
 
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
-            $topicScopeIds = $this->withParentTopicScopes($mahalaIds);
+            $publishedMahalaIds = $this->publishedMahalaIds($mahalaIds);
+            $topicScopeIds = $this->withParentTopicScopes($publishedMahalaIds);
 
             if ($topicScopeIds === []) {
                 return response()->json([
@@ -95,8 +97,16 @@ class TopicController extends Controller
     public function index(Request $request)
     {
         try {
+            $publishedMahalaIds = $request->filled('mahala_id')
+                ? $this->publishedMahalaIds([(string) $request->query('mahala_id')])
+                : null;
+
             $topics = Topic::query()
-                ->when($request->filled('mahala_id'), fn ($query) => $query->where('mahala_id', $request->query('mahala_id')))
+                ->when(
+                    $request->filled('mahala_id'),
+                    fn ($query) => $query->whereIn('mahala_id', $publishedMahalaIds),
+                    fn ($query) => $query->whereHas('mahala', fn ($mahalaQuery) => $mahalaQuery->where('status', 'published')),
+                )
                 ->latest()
                 ->get()
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
@@ -333,6 +343,20 @@ class TopicController extends Controller
         return $scopeIds
             ->unique()
             ->values()
+            ->all();
+    }
+
+    private function publishedMahalaIds(array $mahalaIds): array
+    {
+        if ($mahalaIds === []) {
+            return [];
+        }
+
+        return Mahala::query()
+            ->whereIn('id', $mahalaIds)
+            ->where('status', 'published')
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
             ->all();
     }
 }
