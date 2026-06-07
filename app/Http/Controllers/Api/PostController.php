@@ -155,6 +155,7 @@ class PostController extends Controller
     public function store(Request $request)
     {
         try {
+            $this->logImageUploadEvent('store-received', $request);
             $validated = $request->validate($this->rules());
             $attributes = $this->buildAttributes($validated);
             $attributes['image_uri'] = $this->storeUploadedImage($request);
@@ -173,13 +174,20 @@ class PostController extends Controller
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
+            $this->logImageUploadEvent('store-validation-failed', $request, [
+                'errors' => $e->errors(),
+            ]);
             throw $e;
         } catch (QueryException $e) {
+            $this->logImageUploadException('store-query-failed', $request, $e);
+
             return response()->json([
                 'message' => 'Doslo je do greske u bazi pri kreiranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
+            $this->logImageUploadException('store-exception', $request, $e);
+
             return response()->json([
                 'message' => 'Doslo je do neocekivane greske pri kreiranju objave.',
                 'error' => $e->getMessage(),
@@ -215,6 +223,9 @@ class PostController extends Controller
     public function update(Request $request, string $id)
     {
         try {
+            $this->logImageUploadEvent('update-received', $request, [
+                'post_id' => $id,
+            ]);
             $post = Post::query()->findOrFail($id);
             $validated = $request->validate($this->rules(isUpdate: true));
             $attributes = $this->buildAttributes($validated, $post);
@@ -231,6 +242,10 @@ class PostController extends Controller
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 200);
         } catch (ValidationException $e) {
+            $this->logImageUploadEvent('update-validation-failed', $request, [
+                'post_id' => $id,
+                'errors' => $e->errors(),
+            ]);
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -238,11 +253,19 @@ class PostController extends Controller
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
+            $this->logImageUploadException('update-query-failed', $request, $e, [
+                'post_id' => $id,
+            ]);
+
             return response()->json([
                 'message' => 'Doslo je do greske u bazi pri azuriranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
+            $this->logImageUploadException('update-exception', $request, $e, [
+                'post_id' => $id,
+            ]);
+
             return response()->json([
                 'message' => 'Doslo je do neocekivane greske pri azuriranju objave.',
                 'error' => $e->getMessage(),
@@ -542,27 +565,54 @@ PROMPT;
     private function storeUploadedImage(Request $request, ?string $oldImageUri = null): ?string
     {
         if (!$request->hasFile('image')) {
+            $this->logImageUploadEvent('no-file', $request, [
+                'old_image_uri' => $oldImageUri,
+            ]);
+
             return null;
         }
 
         $file = $request->file('image');
 
         if (!$file instanceof UploadedFile) {
+            $this->logImageUploadEvent('invalid-upload-instance', $request, [
+                'old_image_uri' => $oldImageUri,
+            ]);
+
             return null;
         }
 
-        $source = @imagecreatefromstring(File::get($file->getRealPath()));
+        $this->logImageUploadEvent('processing-started', $request, [
+            'file' => $this->uploadedImageLogContext($file),
+            'old_image_uri' => $oldImageUri,
+        ]);
+
+        $realPath = $file->getRealPath();
+        $source = @imagecreatefromstring(File::get($realPath));
 
         if (!$source) {
+            $this->logImageUploadEvent('decode-failed', $request, [
+                'file' => $this->uploadedImageLogContext($file),
+            ]);
+
             throw ValidationException::withMessages([
                 'image' => ['Slika nije podrzana ili je ostecena.'],
             ]);
         }
 
-        [$sourceWidth, $sourceHeight] = getimagesize($file->getRealPath()) ?: [0, 0];
+        [$sourceWidth, $sourceHeight] = getimagesize($realPath) ?: [0, 0];
         $targetWidth = max(1, (int) $sourceWidth);
         $targetHeight = max(1, (int) $sourceHeight);
         $encoded = null;
+        $encodedBytes = 0;
+        $encodedMaxDimension = null;
+        $encodedQuality = null;
+
+        $this->logImageUploadEvent('source-loaded', $request, [
+            'file' => $this->uploadedImageLogContext($file),
+            'source_width' => $sourceWidth,
+            'source_height' => $sourceHeight,
+        ]);
 
         foreach ([1600, 1400, 1200, 1000, 800, 640, 520, 420, 320, 240, 180, 120] as $maxDimension) {
             $scale = min(1, $maxDimension / max($targetWidth, $targetHeight));
@@ -578,6 +628,9 @@ PROMPT;
 
                 if (strlen($candidate) <= 100 * 1024) {
                     $encoded = $candidate;
+                    $encodedBytes = strlen($candidate);
+                    $encodedMaxDimension = $maxDimension;
+                    $encodedQuality = $quality;
                     break;
                 }
             }
@@ -586,6 +639,9 @@ PROMPT;
                 ob_start();
                 imagejpeg($canvas, null, 24);
                 $encoded = ob_get_clean();
+                $encodedBytes = strlen($encoded);
+                $encodedMaxDimension = $maxDimension;
+                $encodedQuality = 24;
             }
 
             imagedestroy($canvas);
@@ -602,10 +658,32 @@ PROMPT;
         File::ensureDirectoryExists($directory, 0755, true);
 
         $filename = Str::uuid()->toString().'.jpg';
-        File::put($directory.DIRECTORY_SEPARATOR.$filename, $encoded);
+        $absolutePath = $directory.DIRECTORY_SEPARATOR.$filename;
+        $bytesWritten = File::put($absolutePath, $encoded);
+        $storedUri = '/'.$relativeDirectory.'/'.$filename;
+
+        if ($bytesWritten === false) {
+            $this->logImageUploadEvent('write-failed', $request, [
+                'file' => $this->uploadedImageLogContext($file),
+                'target_directory' => $relativeDirectory,
+                'stored_uri' => $storedUri,
+            ]);
+        }
+
+        $this->logImageUploadEvent('stored', $request, [
+            'file' => $this->uploadedImageLogContext($file),
+            'source_width' => $sourceWidth,
+            'source_height' => $sourceHeight,
+            'encoded_bytes' => $encodedBytes,
+            'encoded_max_dimension' => $encodedMaxDimension,
+            'encoded_quality' => $encodedQuality,
+            'bytes_written' => $bytesWritten,
+            'stored_uri' => $storedUri,
+        ]);
+
         $this->deleteStoredImage($oldImageUri);
 
-        return '/'.$relativeDirectory.'/'.$filename;
+        return $storedUri;
     }
 
     private function deleteStoredImage(?string $imageUri): void
@@ -624,7 +702,52 @@ PROMPT;
 
         if (File::exists($absolutePath)) {
             File::delete($absolutePath);
+            Log::info('[MAHALA][post-image] deleted-old-image', [
+                'image_uri' => $imageUri,
+            ]);
         }
+    }
+
+    private function logImageUploadEvent(string $event, Request $request, array $context = []): void
+    {
+        Log::info('[MAHALA][post-image] '.$event, array_merge([
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'user_id' => $request->user('sanctum')?->id,
+            'has_image_file' => $request->hasFile('image'),
+            'content_type' => $request->headers->get('content-type'),
+            'content_length' => $request->headers->get('content-length'),
+            'mahala_id' => $request->input('mahala_id'),
+            'topic_id' => $request->input('topic_id'),
+            'channel_id' => $request->input('channel_id'),
+        ], $context));
+    }
+
+    private function logImageUploadException(
+        string $event,
+        Request $request,
+        Exception $exception,
+        array $context = [],
+    ): void {
+        $this->logImageUploadEvent($event, $request, array_merge([
+            'exception_class' => $exception::class,
+            'exception_message' => $exception->getMessage(),
+            'exception_file' => $exception->getFile(),
+            'exception_line' => $exception->getLine(),
+        ], $context));
+    }
+
+    private function uploadedImageLogContext(UploadedFile $file): array
+    {
+        return [
+            'client_original_name' => $file->getClientOriginalName(),
+            'client_mime_type' => $file->getClientMimeType(),
+            'server_mime_type' => $file->getMimeType(),
+            'client_extension' => $file->getClientOriginalExtension(),
+            'size_bytes' => $file->getSize(),
+            'upload_error' => $file->getError(),
+            'is_valid' => $file->isValid(),
+        ];
     }
 
     private function normalizeMahalaIds(mixed $value): array
