@@ -186,6 +186,47 @@ class TopicPostApiTest extends TestCase
         $this->assertCount($beforeUploadCount, File::glob(public_path('uploads/posts/*/*/*.jpg')) ?: []);
     }
 
+    public function test_ai_moderation_can_reject_a_topic(): void
+    {
+        config([
+            'services.post_ai_moderation.enabled' => true,
+            'services.openrouter.api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://openrouter.ai/api/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => json_encode([
+                                'allowed' => false,
+                                'reason' => 'Tema nije prosla sigurnosnu provjeru.',
+                            ]),
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $mahala = $this->createMahala();
+
+        $response = $this->postJson('/api/topics', [
+            'mahala_id' => $mahala->id,
+            'name' => 'Zabranjena tema',
+            'description' => 'Opis zabranjene teme.',
+            'status' => 1,
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+
+        $this->assertDatabaseMissing('topics', [
+            'mahala_id' => $mahala->id,
+            'name' => 'Zabranjena tema',
+        ]);
+    }
+
     public function test_it_creates_and_lists_comments_for_a_post(): void
     {
         $user = User::factory()->create();

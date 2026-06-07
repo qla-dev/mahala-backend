@@ -9,6 +9,8 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -126,7 +128,11 @@ class TopicController extends Controller
     {
         try {
             $validated = $request->validate($this->rules());
-            $topic = Topic::query()->create($this->buildAttributes($validated));
+            $attributes = $this->buildAttributes($validated);
+
+            $this->topicAiCheck($attributes);
+
+            $topic = Topic::query()->create($attributes);
 
             return response()->json([
                 'message' => 'Tema je uspjesno kreirana.',
@@ -318,6 +324,168 @@ class TopicController extends Controller
         }
 
         return $topic->icon ?: $this->resolveTopicIcon($topic->slug);
+    }
+
+    private function topicAiCheck(array $attributes): void
+    {
+        if (!config('services.post_ai_moderation.enabled')) {
+            Log::info('[MAHALA][topic-ai] moderation skipped because it is disabled');
+
+            return;
+        }
+
+        $apiKey = trim((string) config('services.openrouter.api_key'));
+
+        if ($apiKey === '') {
+            Log::warning('[MAHALA][topic-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
+
+            throw ValidationException::withMessages([
+                'name' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $model = trim((string) config('services.post_ai_moderation.text_model', 'google/gemini-2.5-flash'));
+        $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+        $client = Http::withToken($apiKey)
+            ->timeout((int) config('services.post_ai_moderation.timeout', 45))
+            ->acceptJson()
+            ->asJson();
+        $headers = array_filter([
+            'HTTP-Referer' => trim((string) config('services.openrouter.http_referer')),
+            'X-Title' => trim((string) config('services.openrouter.title')),
+        ], fn ($value) => $value !== '');
+
+        if ($headers !== []) {
+            $client = $client->withHeaders($headers);
+        }
+
+        $response = $client->post($baseUrl.'/chat/completions', [
+            'model' => $model,
+            'temperature' => 0,
+            'provider' => [
+                'require_parameters' => true,
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'mahala_topic_moderation',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'required' => ['allowed', 'reason'],
+                        'properties' => [
+                            'allowed' => ['type' => 'boolean'],
+                            'reason' => ['type' => 'string'],
+                        ],
+                    ],
+                ],
+            ],
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $this->topicModerationPrompt(),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => json_encode([
+                        'name' => (string) ($attributes['name'] ?? ''),
+                        'slug' => (string) ($attributes['slug'] ?? ''),
+                        'description' => (string) ($attributes['description'] ?? ''),
+                        'mahala_id' => (string) ($attributes['mahala_id'] ?? ''),
+                    ], JSON_UNESCAPED_UNICODE),
+                ],
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('[MAHALA][topic-ai] OpenRouter moderation request failed', [
+                'status' => $response->status(),
+                'model' => $model,
+                'body' => Str::limit($response->body(), 2000),
+            ]);
+
+            throw ValidationException::withMessages([
+                'name' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $moderationText = $this->extractModerationText($response->json() ?: []);
+        $payload = json_decode($moderationText, true);
+
+        if (!is_array($payload) || !array_key_exists('allowed', $payload)) {
+            Log::warning('[MAHALA][topic-ai] OpenRouter moderation response was not valid JSON', [
+                'model' => $model,
+                'content' => Str::limit($moderationText, 2000),
+            ]);
+
+            throw ValidationException::withMessages([
+                'name' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        if (!$payload['allowed']) {
+            Log::info('[MAHALA][topic-ai] topic rejected by moderation', [
+                'reason' => Str::limit((string) ($payload['reason'] ?? ''), 500),
+                'model' => $model,
+            ]);
+
+            throw ValidationException::withMessages([
+                'name' => [$payload['reason'] ?: 'Tema nije prosla sigurnosnu provjeru.'],
+            ]);
+        }
+    }
+
+    private function extractModerationText(array $response): string
+    {
+        $content = data_get($response, 'choices.0.message.content');
+
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
+        }
+
+        if (is_array($content)) {
+            $chunks = [];
+
+            foreach ($content as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    $chunks[] = trim($item);
+                    continue;
+                }
+
+                if (is_array($item) && trim((string) ($item['text'] ?? '')) !== '') {
+                    $chunks[] = trim((string) $item['text']);
+                }
+            }
+
+            $text = trim(implode("\n", $chunks));
+
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function topicModerationPrompt(): string
+    {
+        return <<<'PROMPT'
+You are MAHALA's topic safety moderator for Bosnia and Herzegovina local community topic names.
+
+Return strict JSON only: {"allowed": boolean, "reason": string}.
+
+Allow ordinary local topic ideas, slang, jokes, events, services, buying/selling categories, nightlife, sports, pets, politics, and other broad community discussion categories.
+
+Reject topics whose name, slug, or description promotes or invites:
+- Threats, violence, doxxing, stalking, blackmail, or harassment.
+- Hate or nationalism targeting ethnicity, nationality, religion, race, gender, sexuality, disability, or similar protected groups.
+- Sexual content involving minors, explicit sex acts, non-consensual intimate imagery, or full nudity.
+- Illegal sales or instructions for weapons, hard drugs, fraud, or other serious crime.
+- Severe profanity aimed at a person or group, dehumanizing insults, or abusive slurs.
+
+If rejecting, write a short Bosnian reason suitable for showing to the user. If allowed, reason can be "OK".
+PROMPT;
     }
 
     private function normalizeMahalaIds(mixed $value): array
