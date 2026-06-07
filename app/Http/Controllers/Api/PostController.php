@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -317,12 +318,16 @@ class PostController extends Controller
     private function postAiCheck(array $attributes, ?string $imageUri = null): void
     {
         if (!config('services.post_ai_moderation.enabled')) {
+            Log::info('[MAHALA][post-ai] moderation skipped because it is disabled');
+
             return;
         }
 
         $apiKey = trim((string) config('services.openrouter.api_key'));
 
         if ($apiKey === '') {
+            Log::warning('[MAHALA][post-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
+
             throw ValidationException::withMessages([
                 'content' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
             ]);
@@ -401,20 +406,40 @@ class PostController extends Controller
         ]);
 
         if (!$response->successful()) {
+            Log::warning('[MAHALA][post-ai] OpenRouter moderation request failed', [
+                'status' => $response->status(),
+                'model' => $model,
+                'has_image' => $hasImage,
+                'body' => Str::limit($response->body(), 2000),
+            ]);
+
             throw ValidationException::withMessages([
                 'content' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
             ]);
         }
 
-        $payload = json_decode($this->extractModerationText($response->json() ?: []), true);
+        $moderationText = $this->extractModerationText($response->json() ?: []);
+        $payload = json_decode($moderationText, true);
 
         if (!is_array($payload) || !array_key_exists('allowed', $payload)) {
+            Log::warning('[MAHALA][post-ai] OpenRouter moderation response was not valid JSON', [
+                'model' => $model,
+                'has_image' => $hasImage,
+                'content' => Str::limit($moderationText, 2000),
+            ]);
+
             throw ValidationException::withMessages([
                 'content' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
             ]);
         }
 
         if (!$payload['allowed']) {
+            Log::info('[MAHALA][post-ai] post rejected by moderation', [
+                'reason' => Str::limit((string) ($payload['reason'] ?? ''), 500),
+                'model' => $model,
+                'has_image' => $hasImage,
+            ]);
+
             $this->deleteStoredImage($imageUri);
 
             throw ValidationException::withMessages([
