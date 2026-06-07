@@ -9,8 +9,11 @@ use App\Models\Topic;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -140,7 +143,9 @@ class PostController extends Controller
     {
         try {
             $validated = $request->validate($this->rules());
-            $post = Post::query()->create($this->buildAttributes($validated));
+            $attributes = $this->buildAttributes($validated);
+            $attributes['image_uri'] = $this->storeUploadedImage($request);
+            $post = Post::query()->create($attributes);
 
             return response()->json([
                 'message' => 'Objava je uspjesno kreirana.',
@@ -191,7 +196,13 @@ class PostController extends Controller
         try {
             $post = Post::query()->findOrFail($id);
             $validated = $request->validate($this->rules(isUpdate: true));
-            $post->update($this->buildAttributes($validated, $post));
+            $attributes = $this->buildAttributes($validated, $post);
+
+            if ($request->hasFile('image')) {
+                $attributes['image_uri'] = $this->storeUploadedImage($request, $post->image_uri);
+            }
+
+            $post->update($attributes);
             $post->refresh();
 
             return response()->json([
@@ -222,6 +233,7 @@ class PostController extends Controller
     {
         try {
             $post = Post::query()->findOrFail($id);
+            $this->deleteStoredImage($post->image_uri);
             $post->delete();
 
             return response()->json([
@@ -258,6 +270,7 @@ class PostController extends Controller
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
             'image_uri' => ['sometimes', 'nullable', 'string'],
+            'image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:8192'],
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
             'hidden' => ['sometimes', 'nullable', 'boolean'],
@@ -290,6 +303,94 @@ class PostController extends Controller
             'status' => $validated['status'] ?? $post?->status ?? 0,
             'hidden' => array_key_exists('hidden', $validated) ? $validated['hidden'] : $post?->hidden,
         ];
+    }
+
+    private function storeUploadedImage(Request $request, ?string $oldImageUri = null): ?string
+    {
+        if (!$request->hasFile('image')) {
+            return null;
+        }
+
+        $file = $request->file('image');
+
+        if (!$file instanceof UploadedFile) {
+            return null;
+        }
+
+        $source = @imagecreatefromstring(File::get($file->getRealPath()));
+
+        if (!$source) {
+            throw ValidationException::withMessages([
+                'image' => ['Slika nije podrzana ili je ostecena.'],
+            ]);
+        }
+
+        [$sourceWidth, $sourceHeight] = getimagesize($file->getRealPath()) ?: [0, 0];
+        $targetWidth = max(1, (int) $sourceWidth);
+        $targetHeight = max(1, (int) $sourceHeight);
+        $encoded = null;
+
+        foreach ([1600, 1400, 1200, 1000, 800, 640, 520, 420, 320, 240, 180, 120] as $maxDimension) {
+            $scale = min(1, $maxDimension / max($targetWidth, $targetHeight));
+            $resizeWidth = max(1, (int) floor($targetWidth * $scale));
+            $resizeHeight = max(1, (int) floor($targetHeight * $scale));
+            $canvas = imagecreatetruecolor($resizeWidth, $resizeHeight);
+            imagecopyresampled($canvas, $source, 0, 0, 0, 0, $resizeWidth, $resizeHeight, $targetWidth, $targetHeight);
+
+            foreach ([82, 74, 66, 58, 50, 42, 34, 28] as $quality) {
+                ob_start();
+                imagejpeg($canvas, null, $quality);
+                $candidate = ob_get_clean();
+
+                if (strlen($candidate) <= 100 * 1024) {
+                    $encoded = $candidate;
+                    break;
+                }
+            }
+
+            if ($encoded === null && $maxDimension === 120) {
+                ob_start();
+                imagejpeg($canvas, null, 24);
+                $encoded = ob_get_clean();
+            }
+
+            imagedestroy($canvas);
+
+            if ($encoded !== null) {
+                break;
+            }
+        }
+
+        imagedestroy($source);
+
+        $relativeDirectory = 'uploads/posts/'.now()->format('Y/m');
+        $directory = public_path($relativeDirectory);
+        File::ensureDirectoryExists($directory, 0755, true);
+
+        $filename = Str::uuid()->toString().'.jpg';
+        File::put($directory.DIRECTORY_SEPARATOR.$filename, $encoded);
+        $this->deleteStoredImage($oldImageUri);
+
+        return rtrim(config('app.url'), '/').'/'.$relativeDirectory.'/'.$filename;
+    }
+
+    private function deleteStoredImage(?string $imageUri): void
+    {
+        if (!$imageUri) {
+            return;
+        }
+
+        $path = parse_url($imageUri, PHP_URL_PATH);
+
+        if (!$path || !str_starts_with($path, '/uploads/posts/')) {
+            return;
+        }
+
+        $absolutePath = public_path(ltrim($path, '/'));
+
+        if (File::exists($absolutePath)) {
+            File::delete($absolutePath);
+        }
     }
 
     private function normalizeMahalaIds(mixed $value): array

@@ -8,6 +8,8 @@ use App\Models\Topic;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\File;
+use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -101,6 +103,38 @@ class TopicPostApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $response->json('data.id'));
+    }
+
+    public function test_it_uploads_and_compresses_post_image_to_public_uploads(): void
+    {
+        $mahala = $this->createMahala();
+
+        $response = $this->post('/api/posts', [
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Post sa slikom',
+            'image' => UploadedFile::fake()->image('post.png', 1600, 1200),
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ], [
+            'Accept' => 'application/json',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.content', 'Post sa slikom');
+
+        $imageUri = $response->json('data.image_uri');
+        $this->assertIsString($imageUri);
+        $this->assertStringContainsString('/uploads/posts/', $imageUri);
+
+        $path = parse_url($imageUri, PHP_URL_PATH);
+        $absolutePath = public_path(ltrim($path, '/'));
+        $this->assertFileExists($absolutePath);
+        $this->assertLessThanOrEqual(100 * 1024, File::size($absolutePath));
+
+        File::delete($absolutePath);
     }
 
     public function test_it_creates_and_lists_comments_for_a_post(): void
