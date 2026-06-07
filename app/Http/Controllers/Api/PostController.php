@@ -162,6 +162,12 @@ class PostController extends Controller
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 201);
         } catch (ValidationException $e) {
+            Log::warning('[MAHALA][post-create] validation failed', [
+                'errors' => $e->errors(),
+                'image_upload' => $this->uploadedImageDebug($request),
+                'content_length' => strlen((string) $request->input('content', '')),
+            ]);
+
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
@@ -531,14 +537,31 @@ PROMPT;
     private function storeUploadedImage(Request $request, ?string $oldImageUri = null): ?string
     {
         if (!$request->hasFile('image')) {
+            if ($request->file('image') !== null) {
+                Log::warning('[MAHALA][post-image] image field exists but hasFile returned false', [
+                    'image_upload' => $this->uploadedImageDebug($request),
+                ]);
+            }
+
             return null;
         }
 
         $file = $request->file('image');
 
         if (!$file instanceof UploadedFile) {
+            Log::warning('[MAHALA][post-image] image field is not an uploaded file', [
+                'image_upload' => $this->uploadedImageDebug($request),
+            ]);
+
             return null;
         }
+
+        Log::info('[MAHALA][post-image] image upload received', [
+            'client_name' => $file->getClientOriginalName(),
+            'client_mime' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'error' => $file->getError(),
+        ]);
 
         $source = @imagecreatefromstring(File::get($file->getRealPath()));
 
@@ -595,6 +618,49 @@ PROMPT;
         $this->deleteStoredImage($oldImageUri);
 
         return '/'.$relativeDirectory.'/'.$filename;
+    }
+
+    private function uploadedImageDebug(Request $request): array
+    {
+        $file = $request->file('image');
+
+        if ($file instanceof UploadedFile) {
+            return [
+                'present' => true,
+                'valid' => $file->isValid(),
+                'error' => $file->getError(),
+                'client_name' => $file->getClientOriginalName(),
+                'client_mime' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'max_upload_kb' => $this->phpSizeToKilobytes((string) ini_get('upload_max_filesize')),
+                'post_max_kb' => $this->phpSizeToKilobytes((string) ini_get('post_max_size')),
+            ];
+        }
+
+        return [
+            'present' => $file !== null,
+            'has_file' => $request->hasFile('image'),
+            'content_length' => $request->server('CONTENT_LENGTH'),
+            'max_upload_kb' => $this->phpSizeToKilobytes((string) ini_get('upload_max_filesize')),
+            'post_max_kb' => $this->phpSizeToKilobytes((string) ini_get('post_max_size')),
+        ];
+    }
+
+    private function phpSizeToKilobytes(string $value): ?int
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        $unit = strtolower(substr($value, -1));
+        $size = (float) $value;
+
+        return match ($unit) {
+            'g' => (int) ($size * 1024 * 1024),
+            'm' => (int) ($size * 1024),
+            'k' => (int) $size,
+            default => (int) ceil($size / 1024),
+        };
     }
 
     private function deleteStoredImage(?string $imageUri): void
