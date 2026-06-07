@@ -371,7 +371,7 @@ class PostController extends Controller
         File::put($directory.DIRECTORY_SEPARATOR.$filename, $encoded);
         $this->deleteStoredImage($oldImageUri);
 
-        return rtrim(config('app.url'), '/').'/'.$relativeDirectory.'/'.$filename;
+        return '/'.$relativeDirectory.'/'.$filename;
     }
 
     private function deleteStoredImage(?string $imageUri): void

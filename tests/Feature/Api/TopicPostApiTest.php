@@ -127,7 +127,7 @@ class TopicPostApiTest extends TestCase
 
         $imageUri = $response->json('data.image_uri');
         $this->assertIsString($imageUri);
-        $this->assertStringContainsString('/uploads/posts/', $imageUri);
+        $this->assertStringStartsWith('/uploads/posts/', $imageUri);
 
         $path = parse_url($imageUri, PHP_URL_PATH);
         $absolutePath = public_path(ltrim($path, '/'));
