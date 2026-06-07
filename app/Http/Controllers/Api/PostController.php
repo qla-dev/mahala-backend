@@ -435,7 +435,10 @@ class PostController extends Controller
 
     private function formatPost(Post $post, ?int $userId = null): array
     {
-        $post->loadMissing(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()]);
+        $post->loadMissing([
+            'author',
+            'comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest(),
+        ]);
         $comments = $post->comments
             ->where('status', 1)
             ->values()
@@ -447,6 +450,7 @@ class PostController extends Controller
             'id' => $post->id,
             'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
+            'author_username' => $post->author?->username,
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
             'color_hex' => $this->resolveMahalaColor($post->mahala_id),

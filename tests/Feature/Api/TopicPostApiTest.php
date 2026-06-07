@@ -86,6 +86,7 @@ class TopicPostApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.topic_id', 'glavna')
             ->assertJsonPath('data.author_user_id', $user->id)
+            ->assertJsonPath('data.author_username', $user->username)
             ->assertJsonPath('data.mahala_id', $mahala->id)
             ->assertJsonPath('data.content', 'Ima li ko za kafu?')
             ->assertJsonPath('data.color_hex', '#f59e0b')
