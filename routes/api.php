@@ -32,7 +32,10 @@ Route::middleware('auth:sanctum')->post('revenuecat/sync-pro', [RevenueCatContro
 Route::middleware('auth:sanctum')->post('location-debug-reports', [LocationDebugReportController::class, 'store']);
 
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
-Route::apiResource('mahalas', MahalaController::class);
+Route::middleware('auth:sanctum')->post('mahalas', [MahalaController::class, 'store']);
+Route::middleware('auth:sanctum')->match(['put', 'patch'], 'mahalas/{mahala}', [MahalaController::class, 'update']);
+Route::middleware('auth:sanctum')->delete('mahalas/{mahala}', [MahalaController::class, 'destroy']);
+Route::apiResource('mahalas', MahalaController::class)->except(['store', 'update', 'destroy']);
 
 Route::get('startup', StartupController::class);
 

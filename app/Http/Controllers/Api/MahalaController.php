@@ -38,7 +38,11 @@ class MahalaController extends Controller
     {
         try {
             $validated = $request->validate($this->rules());
-            $mahala = Mahala::query()->create($this->buildAttributes($validated));
+            $mahala = Mahala::query()->create($this->buildAttributes([
+                ...$validated,
+                'owner_id' => $request->user()->id,
+                'status' => $validated['status'] ?? 'draft',
+            ]));
 
             return response()->json([
                 'message' => 'Mahala je uspjesno kreirana.',
@@ -217,7 +221,7 @@ class MahalaController extends Controller
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
                 Rule::unique('mahalas', 'slug')->ignore($mahala?->getKey(), 'id'),
             ]),
-            'status' => [$required, 'string'],
+            'status' => ['sometimes', 'string', Rule::in(['draft', 'published', 'archived'])],
             'privacy' => ['sometimes', 'integer', 'min:0'],
             'owner_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
             'level' => ['sometimes', 'integer'],
@@ -242,7 +246,7 @@ class MahalaController extends Controller
             'id' => $mahala?->id ?? $this->resolveId($validated['id'] ?? null, $validated['name']),
             'name' => $validated['name'] ?? $mahala->name,
             'slug' => $validated['slug'] ?? $mahala?->slug ?? $this->resolveSlug($validated['name'] ?? $mahala?->name ?? '', $mahala),
-            'status' => $validated['status'] ?? $mahala?->status ?? '',
+            'status' => $validated['status'] ?? $mahala?->status ?? 'draft',
             'privacy' => $validated['privacy'] ?? $mahala?->privacy ?? 0,
             'owner_id' => array_key_exists('owner_id', $validated) ? $validated['owner_id'] : $mahala?->owner_id,
             'level' => $validated['level'] ?? $mahala?->level ?? 2,
