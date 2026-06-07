@@ -520,11 +520,21 @@ PROMPT;
             return [];
         }
 
-        return Mahala::query()
+        $publishedIds = Mahala::query()
             ->whereIn('id', $mahalaIds)
             ->where('status', 'published')
             ->pluck('id')
             ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $externalScopeIds = array_values(array_intersect($mahalaIds, [
+            self::SARAJEVO_TOPIC_SCOPE_ID,
+            ...self::SARAJEVO_POLYGON_IDS,
+        ]));
+
+        return collect([...$publishedIds, ...$externalScopeIds])
+            ->unique()
+            ->values()
             ->all();
     }
 }
