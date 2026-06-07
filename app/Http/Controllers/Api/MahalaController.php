@@ -15,10 +15,16 @@ use Illuminate\Validation\ValidationException;
 
 class MahalaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         try {
+            $payload = $request->validate([
+                'status' => ['sometimes', 'string', Rule::in(['draft', 'published', 'archived', 'all'])],
+            ]);
+            $status = $payload['status'] ?? 'published';
+
             $mahalas = Mahala::query()
+                ->when($status !== 'all', fn ($query) => $query->where('status', $status))
                 ->latest()
                 ->get()
                 ->map(fn (Mahala $mahala) => $this->formatMahala($mahala));

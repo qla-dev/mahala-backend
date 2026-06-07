@@ -194,7 +194,6 @@ class PostController extends Controller
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
-                ->whereHas('mahala', fn ($query) => $query->where('status', 'published'))
                 ->findOrFail($id);
 
             return response()->json([
