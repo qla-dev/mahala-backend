@@ -138,6 +138,54 @@ class TopicPostApiTest extends TestCase
         File::delete($absolutePath);
     }
 
+    public function test_ai_moderation_can_reject_a_post_and_delete_uploaded_image(): void
+    {
+        config([
+            'services.post_ai_moderation.enabled' => true,
+            'services.openrouter.api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://openrouter.ai/api/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => json_encode([
+                                'allowed' => false,
+                                'reason' => 'Objava nije prosla sigurnosnu provjeru.',
+                            ]),
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $mahala = $this->createMahala();
+        $beforeUploadCount = count(File::glob(public_path('uploads/posts/*/*/*.jpg')) ?: []);
+
+        $response = $this->post('/api/posts', [
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Zabranjen sadrzaj',
+            'image' => UploadedFile::fake()->image('post.png', 900, 700),
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ], [
+            'Accept' => 'application/json',
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('content');
+
+        $this->assertDatabaseMissing('posts', [
+            'content' => 'Zabranjen sadrzaj',
+        ]);
+
+        $this->assertCount($beforeUploadCount, File::glob(public_path('uploads/posts/*/*/*.jpg')) ?: []);
+    }
+
     public function test_it_creates_and_lists_comments_for_a_post(): void
     {
         $user = User::factory()->create();

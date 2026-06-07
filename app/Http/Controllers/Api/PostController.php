@@ -12,6 +12,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -145,6 +146,14 @@ class PostController extends Controller
             $validated = $request->validate($this->rules());
             $attributes = $this->buildAttributes($validated);
             $attributes['image_uri'] = $this->storeUploadedImage($request);
+
+            try {
+                $this->postAiCheck($attributes, $attributes['image_uri']);
+            } catch (Exception $e) {
+                $this->deleteStoredImage($attributes['image_uri']);
+                throw $e;
+            }
+
             $post = Post::query()->create($attributes);
 
             return response()->json([
@@ -303,6 +312,195 @@ class PostController extends Controller
             'status' => $validated['status'] ?? $post?->status ?? 0,
             'hidden' => array_key_exists('hidden', $validated) ? $validated['hidden'] : $post?->hidden,
         ];
+    }
+
+    private function postAiCheck(array $attributes, ?string $imageUri = null): void
+    {
+        if (!config('services.post_ai_moderation.enabled')) {
+            return;
+        }
+
+        $apiKey = trim((string) config('services.openrouter.api_key'));
+
+        if ($apiKey === '') {
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $hasImage = $imageUri !== null;
+        $model = trim((string) config(
+            $hasImage ? 'services.post_ai_moderation.vision_model' : 'services.post_ai_moderation.text_model',
+        ));
+        $baseUrl = rtrim((string) config('services.openrouter.base_url', 'https://openrouter.ai/api/v1'), '/');
+        $client = Http::withToken($apiKey)
+            ->timeout((int) config('services.post_ai_moderation.timeout', 45))
+            ->acceptJson()
+            ->asJson();
+        $headers = array_filter([
+            'HTTP-Referer' => trim((string) config('services.openrouter.http_referer')),
+            'X-Title' => trim((string) config('services.openrouter.title')),
+        ], fn ($value) => $value !== '');
+
+        if ($headers !== []) {
+            $client = $client->withHeaders($headers);
+        }
+
+        $userContent = [
+            [
+                'type' => 'text',
+                'text' => json_encode([
+                    'content' => (string) ($attributes['content'] ?? ''),
+                    'topic_id' => (string) ($attributes['topic_id'] ?? ''),
+                    'mahala_id' => (string) ($attributes['mahala_id'] ?? ''),
+                    'has_image' => $hasImage,
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ];
+
+        if ($hasImage) {
+            $imagePart = $this->buildModerationImagePart($imageUri);
+
+            if ($imagePart !== null) {
+                $userContent[] = $imagePart;
+            }
+        }
+
+        $response = $client->post($baseUrl.'/chat/completions', [
+            'model' => $model,
+            'temperature' => 0,
+            'provider' => [
+                'require_parameters' => true,
+            ],
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'mahala_post_moderation',
+                    'strict' => true,
+                    'schema' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'required' => ['allowed', 'reason'],
+                        'properties' => [
+                            'allowed' => ['type' => 'boolean'],
+                            'reason' => ['type' => 'string'],
+                        ],
+                    ],
+                ],
+            ],
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $this->postModerationPrompt(),
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $userContent,
+                ],
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        $payload = json_decode($this->extractModerationText($response->json() ?: []), true);
+
+        if (!is_array($payload) || !array_key_exists('allowed', $payload)) {
+            throw ValidationException::withMessages([
+                'content' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
+            ]);
+        }
+
+        if (!$payload['allowed']) {
+            $this->deleteStoredImage($imageUri);
+
+            throw ValidationException::withMessages([
+                'content' => [$payload['reason'] ?: 'Objava nije prosla sigurnosnu provjeru.'],
+            ]);
+        }
+    }
+
+    private function buildModerationImagePart(string $imageUri): ?array
+    {
+        $path = parse_url($imageUri, PHP_URL_PATH);
+
+        if (!$path || !str_starts_with($path, '/uploads/posts/')) {
+            return null;
+        }
+
+        $absolutePath = public_path(ltrim($path, '/'));
+
+        if (!File::exists($absolutePath)) {
+            return null;
+        }
+
+        $mime = File::mimeType($absolutePath) ?: 'image/jpeg';
+        $bytes = File::get($absolutePath);
+
+        return [
+            'type' => 'image_url',
+            'image_url' => [
+                'url' => 'data:'.$mime.';base64,'.base64_encode($bytes),
+            ],
+        ];
+    }
+
+    private function extractModerationText(array $response): string
+    {
+        $content = data_get($response, 'choices.0.message.content');
+
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
+        }
+
+        if (is_array($content)) {
+            $chunks = [];
+
+            foreach ($content as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    $chunks[] = trim($item);
+                    continue;
+                }
+
+                if (is_array($item) && trim((string) ($item['text'] ?? '')) !== '') {
+                    $chunks[] = trim((string) $item['text']);
+                }
+            }
+
+            $text = trim(implode("\n", $chunks));
+
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function postModerationPrompt(): string
+    {
+        return <<<'PROMPT'
+You are MAHALA's post safety moderator for Bosnia and Herzegovina local community posts.
+
+Return strict JSON only: {"allowed": boolean, "reason": string}.
+
+Allow:
+- Ordinary local talk, questions, complaints, jokes, sarcasm, gossip, events, wedding/party scenes, and heated but non-threatening disagreement.
+- People who are dressed provocatively, tastefully revealing, swimwear, nightlife outfits, or very skimpy clothing if no genitals, nipples, explicit sex act, or full nudity is visible.
+- Mild slang and non-targeted frustration.
+
+Reject:
+- Full nudity, exposed genitals, exposed nipples, explicit sex acts, sexual content involving minors, sexual coercion, or non-consensual intimate imagery.
+- Direct threats, calls for violence, instructions for harm, doxxing, stalking, blackmail, or credible harassment.
+- Hate or nationalism targeting ethnicity, nationality, religion, race, gender, sexuality, disability, or similar protected groups.
+- Severe profanity aimed at a person or group, dehumanizing insults, or abusive slurs.
+- Illegal sales or instructions for weapons, hard drugs, fraud, or other serious crime.
+
+If rejecting, write a short Bosnian reason suitable for showing to the user. If allowed, reason can be "OK".
+PROMPT;
     }
 
     private function storeUploadedImage(Request $request, ?string $oldImageUri = null): ?string

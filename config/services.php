@@ -41,6 +41,20 @@ return [
         'pro_entitlement_id' => env('REVENUECAT_PRO_ENTITLEMENT_ID', 'pro'),
     ],
 
+    'post_ai_moderation' => [
+        'enabled' => filter_var(env('POST_AI_MODERATION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'text_model' => env('POST_AI_MODERATION_TEXT_MODEL', 'google/gemini-flash-1.5-8b'),
+        'vision_model' => env('POST_AI_MODERATION_VISION_MODEL', 'google/gemini-2.0-flash-001'),
+        'timeout' => (int) env('POST_AI_MODERATION_TIMEOUT', 45),
+    ],
+
+    'openrouter' => [
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'http_referer' => env('OPENROUTER_HTTP_REFERER', env('APP_URL')),
+        'title' => env('OPENROUTER_TITLE', env('APP_NAME')),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
