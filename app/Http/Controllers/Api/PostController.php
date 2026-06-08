@@ -388,7 +388,7 @@ class PostController extends Controller
             }
         }
 
-        $response = $client->post($baseUrl.'/chat/completions', [
+        $requestPayload = [
             'model' => $model,
             'temperature' => 0,
             'provider' => [
@@ -424,7 +424,25 @@ class PostController extends Controller
                     'content' => $userContent,
                 ],
             ],
-        ]);
+        ];
+
+        $response = $client->post($baseUrl.'/chat/completions', $requestPayload);
+
+        if (!$response->successful() && $this->shouldRetryModerationWithoutJsonSchema($response->status(), $response->body())) {
+            Log::warning('[MAHALA][post-ai] retrying moderation without json_schema response format', [
+                'status' => $response->status(),
+                'model' => $model,
+                'has_image' => $hasImage,
+                'body' => Str::limit($response->body(), 2000),
+            ]);
+
+            unset($requestPayload['provider']);
+            $requestPayload['response_format'] = [
+                'type' => 'json_object',
+            ];
+
+            $response = $client->post($baseUrl.'/chat/completions', $requestPayload);
+        }
 
         if (!$response->successful()) {
             Log::warning('[MAHALA][post-ai] OpenRouter moderation request failed', [
@@ -500,6 +518,18 @@ class PostController extends Controller
                 'url' => 'data:'.$mime.';base64,'.base64_encode($bytes),
             ],
         ];
+    }
+
+    private function shouldRetryModerationWithoutJsonSchema(int $status, string $body): bool
+    {
+        if ($status !== 400) {
+            return false;
+        }
+
+        return str_contains($body, 'response_json_schema')
+            || str_contains($body, 'response_schema')
+            || str_contains($body, 'schema at top-level requires')
+            || str_contains($body, 'INVALID_ARGUMENT');
     }
 
     private function extractModerationText(array $response): string
