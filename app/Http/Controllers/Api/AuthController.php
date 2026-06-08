@@ -5,34 +5,93 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserSetting;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    private const REGISTRATION_CODE_TTL_MINUTES = 10;
+
+    public function sendRegistrationCode(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+        ]);
+
+        $email = Str::lower($validated['email']);
+        $code = (string) random_int(1000, 9999);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $email],
+            [
+                'token' => Hash::make($code),
+                'created_at' => now(),
+            ],
+        );
+
+        $this->sendRegistrationVerificationEmail($email, $code);
+
+        return response()->json([
+            'message' => 'Verifikacijski kod je poslan.',
+        ]);
+    }
+
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'username' => ['required', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'],
+            'username' => ['sometimes', 'nullable', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'max:255'],
+            'code' => ['required', 'digits:4'],
         ]);
 
+        $email = Str::lower($validated['email']);
+        $verification = DB::table('password_reset_tokens')->where('email', $email)->first();
+
+        if (!$verification) {
+            throw ValidationException::withMessages([
+                'code' => ['Prvo zatrazi verifikacijski kod.'],
+            ]);
+        }
+
+        if (Carbon::parse($verification->created_at)->addMinutes(self::REGISTRATION_CODE_TTL_MINUTES)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+            throw ValidationException::withMessages([
+                'code' => ['Verifikacijski kod je istekao. Zatrazi novi kod.'],
+            ]);
+        }
+
+        if (!Hash::check($validated['code'], $verification->token)) {
+            throw ValidationException::withMessages([
+                'code' => ['Verifikacijski kod nije ispravan.'],
+            ]);
+        }
+
+        $username = $validated['username'] ?? $this->generateGoogleUsername($email, Str::before($email, '@'));
+
         $user = User::query()->create([
-            'name' => $validated['username'],
-            'username' => $validated['username'],
-            'email' => $validated['email'],
+            'name' => $username,
+            'username' => $username,
+            'email' => $email,
+            'email_verified_at' => now(),
             'password' => $validated['password'],
         ]);
+
+        DB::table('password_reset_tokens')->where('email', $email)->delete();
 
         return response()->json([
             'message' => 'Registracija je uspjesna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
+            'is_new_user' => true,
         ], 201);
     }
 
@@ -505,5 +564,18 @@ class AuthController extends Controller
         }
 
         return $username;
+    }
+
+    private function sendRegistrationVerificationEmail(string $email, string $code): void
+    {
+        $html = view('emails.registration-code', [
+            'code' => $code,
+            'expiresInMinutes' => self::REGISTRATION_CODE_TTL_MINUTES,
+        ])->render();
+
+        Mail::html($html, function ($message) use ($email) {
+            $message->to($email)
+                ->subject('MAHALA verifikacijski kod');
+        });
     }
 }
