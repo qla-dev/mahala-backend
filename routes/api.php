@@ -46,6 +46,7 @@ Route::apiResource('topics', TopicController::class);
 Route::get('feed', [PostController::class, 'feed']);
 Route::get('posts/{post}/comments', [CommentController::class, 'index']);
 Route::post('posts/{post}/comments', [CommentController::class, 'store']);
+Route::middleware('auth:sanctum')->post('posts/{post}/view', [PostController::class, 'view']);
 Route::middleware('auth:sanctum')->post('posts/{post}/vote', [VoteController::class, 'votePost']);
 Route::middleware('auth:sanctum')->post('comments/{comment}/vote', [VoteController::class, 'voteComment']);
 Route::apiResource('posts', PostController::class);

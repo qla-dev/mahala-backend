@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\Mahala;
 use App\Models\Post;
+use App\Models\PostView;
 use App\Models\Topic;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -67,6 +68,7 @@ class PostController extends Controller
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount([
+                    'views as views_count',
                     'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
                     'comments as recent_comments_count' => fn ($query) => $query
                         ->where('status', 1)
@@ -125,7 +127,10 @@ class PostController extends Controller
             $posts = Post::query()
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
-                ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
+                ->withCount([
+                    'views as views_count',
+                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                ])
                 ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
                 ->when($request->filled('channel_id'), fn ($query) => $query->where(
                     'topic_id',
@@ -193,7 +198,10 @@ class PostController extends Controller
             $post = Post::query()
                 ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
-                ->withCount(['comments as active_comments_count' => fn ($query) => $query->where('status', 1)])
+                ->withCount([
+                    'views as views_count',
+                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                ])
                 ->findOrFail($id);
 
             return response()->json([
@@ -248,6 +256,24 @@ class PostController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function view(Request $request, Post $post)
+    {
+        $userId = $request->user()->id;
+
+        PostView::query()->firstOrCreate([
+            'post_id' => $post->id,
+            'user_id' => $userId,
+        ]);
+
+        return response()->json([
+            'message' => 'Pregled objave je uspjesno sacuvan.',
+            'data' => [
+                'post_id' => $post->id,
+                'views_count' => $post->views()->count(),
+            ],
+        ]);
     }
 
     public function destroy(string $id)
@@ -876,6 +902,7 @@ PROMPT;
             'upvotes' => $upvotes,
             'downvotes' => $downvotes,
             'score' => $upvotes - $downvotes,
+            'views_count' => (int) ($post->views_count ?? $post->views()->count()),
             'my_vote' => $userId
                 ? (int) ($post->votes()->where('user_id', $userId)->value('value') ?? 0)
                 : 0,

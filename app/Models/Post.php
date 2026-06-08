@@ -55,6 +55,11 @@ class Post extends Model
         return $this->hasMany(PostVote::class);
     }
 
+    public function views(): HasMany
+    {
+        return $this->hasMany(PostView::class);
+    }
+
     public function scopeWithVoteCounts(Builder $query): Builder
     {
         return $query->withCount([
