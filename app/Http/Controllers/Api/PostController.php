@@ -402,10 +402,14 @@ class PostController extends Controller
                     'schema' => [
                         'type' => 'object',
                         'additionalProperties' => false,
-                        'required' => ['allowed', 'reason'],
+                        'required' => ['allowed', 'reason', 'rotation_degrees'],
                         'properties' => [
                             'allowed' => ['type' => 'boolean'],
                             'reason' => ['type' => 'string'],
+                            'rotation_degrees' => [
+                                'type' => 'integer',
+                                'enum' => [0, 90, 180, 270],
+                            ],
                         ],
                     ],
                 ],
@@ -462,6 +466,14 @@ class PostController extends Controller
             throw ValidationException::withMessages([
                 'content' => [$payload['reason'] ?: 'Objava nije prosla sigurnosnu provjeru.'],
             ]);
+        }
+
+        if ($hasImage) {
+            $rotationDegrees = (int) ($payload['rotation_degrees'] ?? 0);
+
+            if (in_array($rotationDegrees, [90, 180, 270], true)) {
+                $this->rotateStoredImage($imageUri, $rotationDegrees);
+            }
         }
     }
 
@@ -527,7 +539,7 @@ class PostController extends Controller
         return <<<'PROMPT'
 You are MAHALA's post safety moderator for Bosnia and Herzegovina local community posts.
 
-Return strict JSON only: {"allowed": boolean, "reason": string}.
+Return strict JSON only: {"allowed": boolean, "reason": string, "rotation_degrees": 0|90|180|270}.
 
 Allow:
 - Ordinary local talk, questions, complaints, jokes, sarcasm, gossip, events, wedding/party scenes, and heated but non-threatening disagreement.
@@ -542,7 +554,66 @@ Reject:
 - Illegal sales or instructions for weapons, hard drugs, fraud, or other serious crime.
 
 If rejecting, write a short Bosnian reason suitable for showing to the user. If allowed, reason can be "OK".
+
+For image posts, also decide whether the stored image is clearly badly rotated.
+- rotation_degrees is clockwise degrees to fix the image.
+- Use 0 unless the image is clearly sideways or upside down.
+- If a landscape image appears intentionally landscape by composition, horizon, subject placement, or scene type, return 0.
+- Do not rotate for artistic angles, tilted phones, diagonal composition, or ambiguous cases.
+- Only use 90, 180, or 270 when the correction is obvious.
+For text-only posts, rotation_degrees must be 0.
 PROMPT;
+    }
+
+    private function rotateStoredImage(?string $imageUri, int $clockwiseDegrees): void
+    {
+        if (!$imageUri || !in_array($clockwiseDegrees, [90, 180, 270], true)) {
+            return;
+        }
+
+        $path = parse_url($imageUri, PHP_URL_PATH);
+
+        if (!$path || !str_starts_with($path, '/uploads/posts/')) {
+            return;
+        }
+
+        $absolutePath = public_path(ltrim($path, '/'));
+
+        if (!File::exists($absolutePath)) {
+            return;
+        }
+
+        $source = @imagecreatefromjpeg($absolutePath);
+
+        if (!$source) {
+            Log::warning('[MAHALA][post-ai] could not rotate image because stored file is not readable JPEG', [
+                'image_uri' => $imageUri,
+                'rotation_degrees' => $clockwiseDegrees,
+            ]);
+
+            return;
+        }
+
+        $rotated = imagerotate($source, 360 - $clockwiseDegrees, 0);
+        imagedestroy($source);
+
+        if (!$rotated) {
+            Log::warning('[MAHALA][post-ai] image rotation failed', [
+                'image_uri' => $imageUri,
+                'rotation_degrees' => $clockwiseDegrees,
+            ]);
+
+            return;
+        }
+
+        ob_start();
+        imagejpeg($rotated, null, 82);
+        $encoded = ob_get_clean();
+        imagedestroy($rotated);
+
+        if (is_string($encoded) && $encoded !== '') {
+            File::put($absolutePath, $encoded);
+        }
     }
 
     private function storeUploadedImage(Request $request, ?string $oldImageUri = null): ?string
