@@ -49,6 +49,18 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        'verification' => [
+            'transport' => env('VERIFICATION_MAIL_MAILER', env('MAIL_MAILER', 'smtp')),
+            'scheme' => env('VERIFICATION_MAIL_SCHEME', env('MAIL_SCHEME')),
+            'url' => env('VERIFICATION_MAIL_URL'),
+            'host' => env('VERIFICATION_MAIL_HOST', env('MAIL_HOST', '127.0.0.1')),
+            'port' => env('VERIFICATION_MAIL_PORT', env('MAIL_PORT', 2525)),
+            'username' => env('VERIFICATION_MAIL_USERNAME', env('MAIL_USERNAME')),
+            'password' => env('VERIFICATION_MAIL_PASSWORD', env('MAIL_PASSWORD')),
+            'timeout' => null,
+            'local_domain' => env('VERIFICATION_MAIL_EHLO_DOMAIN', env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST))),
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],
@@ -113,6 +125,11 @@ return [
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+    ],
+
+    'verification_from' => [
+        'address' => env('VERIFICATION_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'hello@example.com')),
+        'name' => env('VERIFICATION_MAIL_FROM_NAME', env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel'))),
     ],
 
 ];

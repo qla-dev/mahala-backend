@@ -573,8 +573,12 @@ class AuthController extends Controller
             'expiresInMinutes' => self::REGISTRATION_CODE_TTL_MINUTES,
         ])->render();
 
-        Mail::html($html, function ($message) use ($email) {
+        Mail::mailer('verification')->html($html, function ($message) use ($email) {
             $message->to($email)
+                ->from(
+                    config('mail.verification_from.address'),
+                    config('mail.verification_from.name'),
+                )
                 ->subject('MAHALA verifikacijski kod');
         });
     }
