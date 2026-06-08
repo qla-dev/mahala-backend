@@ -333,6 +333,36 @@ class TopicPostApiTest extends TestCase
         $this->assertDatabaseCount('post_votes', 0);
     }
 
+    public function test_authenticated_user_can_record_one_post_view(): void
+    {
+        $user = User::factory()->create();
+        $post = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'content' => 'Post sa slikom za pregled',
+            'image_uri' => '/uploads/posts/test.jpg',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/posts/{$post->id}/view")
+            ->assertOk()
+            ->assertJsonPath('data.post_id', $post->id)
+            ->assertJsonPath('data.views_count', 1);
+
+        $this->postJson("/api/posts/{$post->id}/view")
+            ->assertOk()
+            ->assertJsonPath('data.views_count', 1);
+
+        $this->assertDatabaseCount('post_views', 1);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('data.views_count', 1);
+    }
+
     public function test_authenticated_user_can_vote_on_a_comment(): void
     {
         $user = User::factory()->create();
