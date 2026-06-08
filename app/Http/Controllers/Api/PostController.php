@@ -291,7 +291,13 @@ class PostController extends Controller
             'mahala_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],
             'image_uri' => ['sometimes', 'nullable', 'string'],
-            'image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:51200'],
+            'image' => [
+                'sometimes',
+                'nullable',
+                'file',
+                'max:51200',
+                $this->uploadedImageRule(),
+            ],
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
             'hidden' => ['sometimes', 'nullable', 'boolean'],
@@ -555,6 +561,12 @@ PROMPT;
         $source = @imagecreatefromstring(File::get($realPath));
 
         if (!$source) {
+            if ($this->isHeicUpload($file)) {
+                throw ValidationException::withMessages([
+                    'image' => ['HEIC slika nije konvertovana. Pokusaj ponovo ili izaberi JPEG sliku.'],
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'image' => ['Slika nije podrzana ili je ostecena.'],
             ]);
@@ -610,6 +622,46 @@ PROMPT;
         $this->deleteStoredImage($oldImageUri);
 
         return $storedUri;
+    }
+
+    private function uploadedImageRule(): callable
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if (!$value instanceof UploadedFile) {
+                return;
+            }
+
+            $extension = Str::lower((string) $value->getClientOriginalExtension());
+            $mimeType = Str::lower((string) $value->getMimeType());
+            $allowedExtensions = ['jpeg', 'jpg', 'png', 'webp', 'heic', 'heif'];
+            $allowedMimeTypes = [
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+                'image/heic',
+                'image/heif',
+                'image/heic-sequence',
+                'image/heif-sequence',
+                'application/octet-stream',
+            ];
+
+            if (!in_array($extension, $allowedExtensions, true) && !in_array($mimeType, $allowedMimeTypes, true)) {
+                $fail('Uploadovana datoteka mora biti slika.');
+            }
+        };
+    }
+
+    private function isHeicUpload(UploadedFile $file): bool
+    {
+        $extension = Str::lower((string) $file->getClientOriginalExtension());
+        $mimeType = Str::lower((string) $file->getMimeType());
+        $originalName = Str::lower((string) $file->getClientOriginalName());
+
+        return in_array($extension, ['heic', 'heif'], true)
+            || str_contains($mimeType, 'heic')
+            || str_contains($mimeType, 'heif')
+            || str_ends_with($originalName, '.heic')
+            || str_ends_with($originalName, '.heif');
     }
 
     private function deleteStoredImage(?string $imageUri): void
