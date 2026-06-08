@@ -45,6 +45,12 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if ($request->filled('username')) {
+            $request->merge([
+                'username' => Str::lower($request->input('username')),
+            ]);
+        }
+
         $validated = $request->validate([
             'username' => ['sometimes', 'nullable', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
@@ -75,7 +81,9 @@ class AuthController extends Controller
             ]);
         }
 
-        $username = $validated['username'] ?? $this->generateGoogleUsername($email, Str::before($email, '@'));
+        $username = isset($validated['username'])
+            ? Str::lower($validated['username'])
+            : $this->generateGoogleUsername($email, Str::before($email, '@'));
 
         $user = User::query()->create([
             'name' => $username,
@@ -261,6 +269,12 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
+        if ($request->filled('username')) {
+            $request->merge([
+                'username' => Str::lower($request->input('username')),
+            ]);
+        }
+
         $validated = $request->validate([
             'username' => [
                 'sometimes',
@@ -272,6 +286,10 @@ class AuthController extends Controller
             ],
             'name' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
+
+        if (array_key_exists('username', $validated) && is_string($validated['username'])) {
+            $validated['username'] = Str::lower($validated['username']);
+        }
 
         $user->fill($validated)->save();
 
@@ -553,6 +571,7 @@ class AuthController extends Controller
         $base = Str::slug(Str::before($email, '@'), '_')
             ?: Str::slug($name, '_')
             ?: 'mahalac';
+        $base = Str::lower($base);
         $base = Str::limit($base, 42, '');
         $username = $base;
         $counter = 1;

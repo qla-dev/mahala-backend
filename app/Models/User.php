@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -52,6 +53,14 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected function username(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => is_string($value) ? strtolower($value) : $value,
+            set: fn ($value) => is_string($value) ? strtolower($value) : $value,
+        );
     }
 
     public function mahalas(): HasMany
