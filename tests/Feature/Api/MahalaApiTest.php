@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\Mahala;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MahalaApiTest extends TestCase
@@ -46,6 +47,7 @@ class MahalaApiTest extends TestCase
     public function test_it_creates_a_mahala_without_id_or_center(): void
     {
         $owner = User::factory()->create();
+        Sanctum::actingAs($owner);
 
         $response = $this->postJson('/api/mahalas', [
             'name' => 'New Test Mahala',
@@ -81,6 +83,42 @@ class MahalaApiTest extends TestCase
             'owner_id' => $owner->id,
             'level' => 2,
         ]);
+    }
+
+    public function test_it_auto_approves_mahalas_for_testing_and_superadmin_users(): void
+    {
+        foreach ([
+            'apple-test-user' => 'Testing Auto Approved Mahala',
+            'qla.dev' => 'Superadmin Auto Approved Mahala',
+        ] as $username => $mahalaName) {
+            $owner = User::factory()->create([
+                'username' => $username,
+            ]);
+            Sanctum::actingAs($owner);
+
+            $response = $this->postJson('/api/mahalas', [
+                'name' => $mahalaName,
+                'status' => 'draft',
+                'privacy' => 0,
+                'coordinates' => [
+                    ['latitude' => 43.85, 'longitude' => 18.42],
+                    ['latitude' => 43.86, 'longitude' => 18.43],
+                    ['latitude' => 43.84, 'longitude' => 18.44],
+                ],
+                'holes' => [],
+            ]);
+
+            $response
+                ->assertCreated()
+                ->assertJsonPath('data.status', 'published')
+                ->assertJsonPath('data.owner_id', $owner->id);
+
+            $this->assertDatabaseHas('mahalas', [
+                'name' => $mahalaName,
+                'status' => 'published',
+                'owner_id' => $owner->id,
+            ]);
+        }
     }
 
     public function test_it_bulk_saves_multiple_mahalas(): void

@@ -15,6 +15,13 @@ use Illuminate\Validation\ValidationException;
 
 class MahalaController extends Controller
 {
+    private const AUTO_APPROVE_USERNAMES = [
+        'kulasinn',
+        'kulasin24',
+        'qla.dev',
+        'apple-test-user',
+    ];
+
     public function index(Request $request)
     {
         try {
@@ -44,10 +51,13 @@ class MahalaController extends Controller
     {
         try {
             $validated = $request->validate($this->rules());
+            $status = $this->shouldAutoApproveMahala($request)
+                ? 'published'
+                : ($validated['status'] ?? 'draft');
             $mahala = Mahala::query()->create($this->buildAttributes([
                 ...$validated,
                 'owner_id' => $request->user()->id,
-                'status' => $validated['status'] ?? 'draft',
+                'status' => $status,
             ]));
 
             return response()->json([
@@ -65,6 +75,13 @@ class MahalaController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function shouldAutoApproveMahala(Request $request): bool
+    {
+        $username = strtolower(trim((string) $request->user()?->username));
+
+        return in_array($username, self::AUTO_APPROVE_USERNAMES, true);
     }
 
     public function bulkSave(Request $request)
