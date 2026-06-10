@@ -14,11 +14,21 @@ class ExpoPushNotificationService
     public function sendNotification(Notification $notification): void
     {
         try {
-            $notification->loadMissing(['fromUser', 'relatedPost', 'relatedComment']);
+            $notification->loadMissing(['user.settings', 'fromUser', 'relatedPost', 'relatedComment']);
 
             $category = in_array($notification->type, [Notification::TYPE_COMMENT, Notification::TYPE_COMMENT_REPLY], true)
                 ? 'comments'
                 : 'votes';
+
+            $settings = $notification->user?->settings;
+
+            if (
+                ($category === 'comments' && !$settings?->notifications_comments) ||
+                ($category === 'votes' && !$settings?->notifications_votes)
+            ) {
+                return;
+            }
+
             $tokens = PushToken::query()
                 ->where('user_id', $notification->user_id)
                 ->where('provider', 'expo')
@@ -64,7 +74,7 @@ class ExpoPushNotificationService
     {
         $preferences = $token->preferences ?: [];
 
-        if (($preferences['app'] ?? true) === false) {
+        if (($preferences['push'] ?? $preferences['app'] ?? true) === false) {
             return false;
         }
 

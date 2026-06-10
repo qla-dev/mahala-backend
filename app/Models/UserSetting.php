@@ -16,14 +16,10 @@ class UserSetting extends Model
 
     protected $fillable = [
         'user_id',
-        'notifications_app',
-        'notifications',
-        'notifications_app_location',
-        'notifications_app_comments',
-        'notifications_app_votes',
-        'notifications_location',
         'notifications_comments',
         'notifications_votes',
+        'notifications_location',
+        'notifications_startup_mahalas',
         'locale',
         'pro_status',
         'pro_started_at',
@@ -34,14 +30,10 @@ class UserSetting extends Model
     {
         return [
             'user_id' => 'integer',
-            'notifications_app' => 'boolean',
-            'notifications' => 'boolean',
-            'notifications_app_location' => 'boolean',
-            'notifications_app_comments' => 'boolean',
-            'notifications_app_votes' => 'boolean',
-            'notifications_location' => 'boolean',
             'notifications_comments' => 'boolean',
             'notifications_votes' => 'boolean',
+            'notifications_location' => 'boolean',
+            'notifications_startup_mahalas' => 'boolean',
             'pro_status' => 'integer',
             'pro_started_at' => 'datetime',
             'pro_ends_at' => 'datetime',

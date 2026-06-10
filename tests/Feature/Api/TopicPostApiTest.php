@@ -411,6 +411,7 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.notifications_app_comments', true)
             ->assertJsonPath('data.notifications_app_votes', true)
             ->assertJsonPath('data.notifications_location', true)
+            ->assertJsonPath('data.notifications_startup_mahalas', true)
             ->assertJsonPath('data.notifications_comments', true)
             ->assertJsonPath('data.notifications_votes', true)
             ->assertJsonPath('data.locale', 'bs')
@@ -419,29 +420,30 @@ class TopicPostApiTest extends TestCase
         $this->patchJson('/api/user-settings', [
             'notifications_app' => false,
             'notifications' => false,
-            'notifications_app_comments' => false,
-            'notifications_app_votes' => false,
+            'notifications_comments' => false,
+            'notifications_votes' => false,
             'notifications_location' => false,
+            'notifications_startup_mahalas' => false,
             'locale' => 'bs',
             'pro_status' => 1,
             'pro_started_at' => '2026-06-02 10:00:00',
             'pro_ends_at' => '2026-07-02 10:00:00',
         ])
             ->assertOk()
-            ->assertJsonPath('data.notifications_app', false)
-            ->assertJsonPath('data.notifications', false)
+            ->assertJsonPath('data.notifications_app', true)
+            ->assertJsonPath('data.notifications', true)
             ->assertJsonPath('data.notifications_app_comments', false)
             ->assertJsonPath('data.notifications_app_votes', false)
             ->assertJsonPath('data.notifications_location', false)
+            ->assertJsonPath('data.notifications_startup_mahalas', false)
             ->assertJsonPath('data.pro_status', 1);
 
         $this->assertDatabaseHas('user_settings', [
             'user_id' => $user->id,
-            'notifications_app' => false,
-            'notifications' => false,
-            'notifications_app_comments' => false,
-            'notifications_app_votes' => false,
+            'notifications_comments' => false,
+            'notifications_votes' => false,
             'notifications_location' => false,
+            'notifications_startup_mahalas' => false,
             'locale' => 'bs',
             'pro_status' => 1,
         ]);
@@ -803,9 +805,7 @@ class TopicPostApiTest extends TestCase
         $owner = User::factory()->create();
         $commenter = User::factory()->create();
         $owner->settings()->create([
-            'notifications_app' => true,
-            'notifications' => true,
-            'notifications_app_comments' => false,
+            'notifications_comments' => false,
         ]);
         $post = \App\Models\Post::query()->create([
             'topic_id' => 'glavna',
@@ -870,9 +870,7 @@ class TopicPostApiTest extends TestCase
         $owner = User::factory()->create();
         $voter = User::factory()->create();
         $owner->settings()->create([
-            'notifications_app' => true,
-            'notifications' => true,
-            'notifications_app_votes' => false,
+            'notifications_votes' => false,
         ]);
         $post = \App\Models\Post::query()->create([
             'topic_id' => 'glavna',

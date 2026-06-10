@@ -45,14 +45,10 @@ class RevenueCatController extends Controller
         }
         $isActive = $this->entitlementIsActive($entitlement);
         $settings = $user->settings()->firstOrCreate([], [
-            'notifications_app' => true,
-            'notifications' => true,
-            'notifications_app_location' => true,
-            'notifications_app_comments' => true,
-            'notifications_app_votes' => true,
-            'notifications_location' => true,
             'notifications_comments' => true,
             'notifications_votes' => true,
+            'notifications_location' => true,
+            'notifications_startup_mahalas' => true,
             'locale' => 'bs',
             'pro_status' => UserSetting::PRO_INACTIVE,
         ]);
@@ -80,12 +76,13 @@ class RevenueCatController extends Controller
                 'settings' => [
                     'id' => $settings->id,
                     'user_id' => $settings->user_id,
-                    'notifications_app' => $settings->notifications_app,
-                    'notifications' => $settings->notifications,
-                    'notifications_app_location' => $settings->notifications_app_location,
-                    'notifications_app_comments' => $settings->notifications_app_comments,
-                    'notifications_app_votes' => $settings->notifications_app_votes,
+                    'notifications_app' => true,
+                    'notifications' => true,
+                    'notifications_app_location' => $settings->notifications_location,
+                    'notifications_app_comments' => $settings->notifications_comments,
+                    'notifications_app_votes' => $settings->notifications_votes,
                     'notifications_location' => $settings->notifications_location,
+                    'notifications_startup_mahalas' => $settings->notifications_startup_mahalas,
                     'notifications_comments' => $settings->notifications_comments,
                     'notifications_votes' => $settings->notifications_votes,
                     'locale' => $settings->locale,
