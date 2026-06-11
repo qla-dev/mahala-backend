@@ -333,12 +333,15 @@ class AuthController extends Controller
             'locale' => 'bs',
             'pro_status' => UserSetting::PRO_INACTIVE,
         ]);
+        $voteTotals = $this->userVoteTotals($user);
 
         return [
             'id' => $user->id,
             'name' => $user->name,
             'username' => $user->username,
             'email' => $user->email,
+            'total_positive_votes' => $voteTotals['positive'],
+            'total_negative_votes' => $voteTotals['negative'],
             'settings' => [
                 'notifications_app' => true,
                 'notifications' => true,
@@ -354,6 +357,32 @@ class AuthController extends Controller
                 'pro_started_at' => $settings->pro_started_at,
                 'pro_ends_at' => $settings->pro_ends_at,
             ],
+        ];
+    }
+
+    private function userVoteTotals(User $user): array
+    {
+        $postVotes = DB::table('post_votes')
+            ->join('posts', 'posts.id', '=', 'post_votes.post_id')
+            ->where('posts.author_user_id', $user->id)
+            ->selectRaw(
+                'SUM(CASE WHEN post_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN post_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+
+        $commentVotes = DB::table('comment_votes')
+            ->join('comments', 'comments.id', '=', 'comment_votes.reply_id')
+            ->where('comments.author', $user->id)
+            ->selectRaw(
+                'SUM(CASE WHEN comment_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN comment_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+
+        return [
+            'positive' => (int) ($postVotes->positive_votes ?? 0) + (int) ($commentVotes->positive_votes ?? 0),
+            'negative' => (int) ($postVotes->negative_votes ?? 0) + (int) ($commentVotes->negative_votes ?? 0),
         ];
     }
 
