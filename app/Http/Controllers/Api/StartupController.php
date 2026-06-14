@@ -35,6 +35,7 @@ class StartupController extends Controller
     private const DEFAULT_TOPIC_ICONS = [
         'glavna' => 'chatbubble-ellipses',
         'eventi' => 'calendar',
+        'spotted' => 'eye',
         'posao' => 'briefcase',
         'ljubimci' => 'paw',
         'izgubljeno-i-nadjeno' => 'search',

@@ -35,6 +35,7 @@ class TopicController extends Controller
     private const RESERVED_GENERAL_TOPIC_SLUGS = [
         'glavna',
         'eventi',
+        'spotted',
         'posao',
         'ljubimci',
         'izgubljeno-i-nadjeno',
@@ -49,6 +50,7 @@ class TopicController extends Controller
     private const DEFAULT_TOPIC_ICONS = [
         'glavna' => 'chatbubble-ellipses',
         'eventi' => 'calendar',
+        'spotted' => 'eye',
         'posao' => 'briefcase',
         'ljubimci' => 'paw',
         'izgubljeno-i-nadjeno' => 'search',
