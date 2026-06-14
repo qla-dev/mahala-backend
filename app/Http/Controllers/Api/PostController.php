@@ -172,7 +172,7 @@ class PostController extends Controller
                 (float) $validated['user_longitude'],
             );
 
-            if (!$isInsideMahala) {
+            if ($isInsideMahala === false) {
                 $attributes['status'] = 0;
             }
 
@@ -313,7 +313,7 @@ class PostController extends Controller
                 (float) $validated['user_longitude'],
             );
 
-            if (!$isInsideMahala) {
+            if ($isInsideMahala === false) {
                 $post->status = 0;
                 $post->save();
 
@@ -960,7 +960,7 @@ PROMPT;
             ->all();
     }
 
-    private function isCoordinateInsideMahalaId(?string $mahalaId, float $latitude, float $longitude): bool
+    private function isCoordinateInsideMahalaId(?string $mahalaId, float $latitude, float $longitude): ?bool
     {
         $targetMahalaId = $mahalaId !== null ? (string) $mahalaId : '';
 
@@ -969,19 +969,33 @@ PROMPT;
         }
 
         if ($targetMahalaId === self::SARAJEVO_TOPIC_SCOPE_ID) {
-            return Mahala::query()
+            $sarajevoMahalas = Mahala::query()
                 ->whereIn('id', self::SARAJEVO_POLYGON_IDS)
-                ->where('status', 'published')
-                ->get()
-                ->contains(fn (Mahala $mahala) => $this->isCoordinateInsideMahala($mahala, $latitude, $longitude));
+                ->get();
+
+            return $sarajevoMahalas->isNotEmpty()
+                ? $sarajevoMahalas->contains(fn (Mahala $mahala) => $this->isCoordinateInsideMahala($mahala, $latitude, $longitude))
+                : null;
         }
 
         $mahala = Mahala::query()
             ->where('id', $targetMahalaId)
-            ->where('status', 'published')
             ->first();
 
-        return $mahala ? $this->isCoordinateInsideMahala($mahala, $latitude, $longitude) : false;
+        if ($mahala) {
+            return $this->isCoordinateInsideMahala($mahala, $latitude, $longitude);
+        }
+
+        return $this->isExternalMahalaScope($targetMahalaId) ? null : false;
+    }
+
+    private function isExternalMahalaScope(string $mahalaId): bool
+    {
+        return $mahalaId === self::SARAJEVO_TOPIC_SCOPE_ID
+            || in_array($mahalaId, self::SARAJEVO_POLYGON_IDS, true)
+            || preg_match('/^\d{5}(?:-\d+)?$/', $mahalaId) === 1
+            || preg_match('/^(?:BA|HR|RS)(?:\d+)?(?:-\d+)?$/i', $mahalaId) === 1
+            || preg_match('/^(?:BA|HR|RS|BIH|border|full|country|region|city|municipality|opcina|općina|sarajevo-arena)[:_-]/i', $mahalaId) === 1;
     }
 
     private function isCoordinateInsideMahala(Mahala $mahala, float $latitude, float $longitude): bool
