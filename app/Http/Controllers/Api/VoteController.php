@@ -101,6 +101,7 @@ class VoteController extends Controller
             'downvotes' => $downvotes,
             'score' => $upvotes - $downvotes,
             'my_vote' => $myVote,
+            'author_rahatluk_points' => $this->authorRahatlukPoints($post->author_user_id),
         ];
     }
 
