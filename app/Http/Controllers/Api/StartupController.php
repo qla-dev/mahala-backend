@@ -9,12 +9,15 @@ use App\Models\Post;
 use App\Models\Topic;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class StartupController extends Controller
 {
+    private array $authorRahatlukPointsCache = [];
+
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -278,6 +281,10 @@ class StartupController extends Controller
             'parent_id' => $comment->parent_id,
             'author_user_id' => $comment->author,
             'author_username' => $comment->authorUser?->username,
+            'author_display_name' => $comment->is_anonymous
+                ? 'komšija'
+                : $comment->authorUser?->username ?? 'komšija',
+            'author_rahatluk_points' => $this->authorRahatlukPoints($comment->author),
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
             'status' => $comment->status,
@@ -290,6 +297,38 @@ class StartupController extends Controller
             'created_at' => $comment->created_at,
             'updated_at' => $comment->updated_at,
         ];
+    }
+
+    private function authorRahatlukPoints(?int $authorId): int
+    {
+        if (!$authorId) {
+            return 0;
+        }
+
+        if (array_key_exists($authorId, $this->authorRahatlukPointsCache)) {
+            return $this->authorRahatlukPointsCache[$authorId];
+        }
+
+        $postVotes = DB::table('post_votes')
+            ->join('posts', 'posts.id', '=', 'post_votes.post_id')
+            ->where('posts.author_user_id', $authorId)
+            ->selectRaw(
+                'SUM(CASE WHEN post_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN post_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+        $commentVotes = DB::table('comment_votes')
+            ->join('comments', 'comments.id', '=', 'comment_votes.reply_id')
+            ->where('comments.author', $authorId)
+            ->selectRaw(
+                'SUM(CASE WHEN comment_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN comment_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+        $positiveVotes = (int) ($postVotes->positive_votes ?? 0) + (int) ($commentVotes->positive_votes ?? 0);
+        $negativeVotes = (int) ($postVotes->negative_votes ?? 0) + (int) ($commentVotes->negative_votes ?? 0);
+
+        return $this->authorRahatlukPointsCache[$authorId] = $positiveVotes - $negativeVotes;
     }
 
     private function resolveTopicIcon(?string $slug): string
