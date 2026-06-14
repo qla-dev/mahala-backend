@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            MahalasSqlSeeder::class,
             MahalaSeeder::class,
             InnovativeTopicSeeder::class,
             InnovativePostSeeder::class,
