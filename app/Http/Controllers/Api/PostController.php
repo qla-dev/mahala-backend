@@ -162,6 +162,17 @@ class PostController extends Controller
         try {
             $validated = $request->validate($this->rules());
             $attributes = $this->buildAttributes($validated);
+            $attributes['author_user_id'] = $request->user()->id;
+            $isInsideMahala = $this->isCoordinateInsideMahalaId(
+                $attributes['mahala_id'],
+                (float) $validated['user_latitude'],
+                (float) $validated['user_longitude'],
+            );
+
+            if (!$isInsideMahala) {
+                $attributes['status'] = 0;
+            }
+
             $attributes['image_uri'] = $this->storeUploadedImage($request);
 
             try {
@@ -176,6 +187,9 @@ class PostController extends Controller
             return response()->json([
                 'message' => 'Objava je uspjesno kreirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
+                'meta' => [
+                    'location_inside_mahala' => $isInsideMahala,
+                ],
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
@@ -276,10 +290,77 @@ class PostController extends Controller
         ]);
     }
 
-    public function destroy(string $id)
+    public function retry(Request $request, Post $post)
     {
         try {
-            $post = Post::query()->findOrFail($id);
+            if ((int) $post->author_user_id !== (int) $request->user()->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za ovu objavu.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'user_latitude' => ['required', 'numeric', 'between:-90,90'],
+                'user_longitude' => ['required', 'numeric', 'between:-180,180'],
+            ]);
+
+            $isInsideMahala = $this->isCoordinateInsideMahalaId(
+                $post->mahala_id,
+                (float) $validated['user_latitude'],
+                (float) $validated['user_longitude'],
+            );
+
+            if (!$isInsideMahala) {
+                $post->status = 0;
+                $post->save();
+
+                return response()->json([
+                    'message' => 'Objava je ostala u draftu jer lokacija nije u toj MAHALI.',
+                    'data' => $this->formatPost($post->fresh(), $request->user()->id),
+                    'meta' => [
+                        'location_inside_mahala' => false,
+                    ],
+                ], 200);
+            }
+
+            $attributes = [
+                'topic_id' => $post->topic_id,
+                'mahala_id' => $post->mahala_id,
+                'content' => $post->content,
+            ];
+
+            $this->postAiCheck($attributes, $post->image_uri);
+
+            $post->status = 1;
+            $post->hidden = false;
+            $post->save();
+
+            return response()->json([
+                'message' => 'Objava je ponovo provjerena i objavljena.',
+                'data' => $this->formatPost($post->fresh(), $request->user()->id),
+                'meta' => [
+                    'location_inside_mahala' => true,
+                ],
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Doslo je do neocekivane greske pri ponovnom pokusaju objave.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function destroy(Request $request, Post $post)
+    {
+        try {
+            if ((int) $post->author_user_id !== (int) $request->user()->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za brisanje ove objave.',
+                ], 403);
+            }
+
             $this->deleteStoredImage($post->image_uri);
             $post->delete();
 
@@ -327,6 +408,8 @@ class PostController extends Controller
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
             'hidden' => ['sometimes', 'nullable', 'boolean'],
+            'user_latitude' => [$isUpdate ? 'sometimes' : 'required', 'numeric', 'between:-90,90'],
+            'user_longitude' => [$isUpdate ? 'sometimes' : 'required', 'numeric', 'between:-180,180'],
         ];
     }
 
@@ -872,6 +955,98 @@ PROMPT;
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function isCoordinateInsideMahalaId(?string $mahalaId, float $latitude, float $longitude): bool
+    {
+        $targetMahalaId = $mahalaId !== null ? (string) $mahalaId : '';
+
+        if ($targetMahalaId === '' || !is_finite($latitude) || !is_finite($longitude)) {
+            return false;
+        }
+
+        if ($targetMahalaId === self::SARAJEVO_TOPIC_SCOPE_ID) {
+            return Mahala::query()
+                ->whereIn('id', self::SARAJEVO_POLYGON_IDS)
+                ->where('status', 'published')
+                ->get()
+                ->contains(fn (Mahala $mahala) => $this->isCoordinateInsideMahala($mahala, $latitude, $longitude));
+        }
+
+        $mahala = Mahala::query()
+            ->where('id', $targetMahalaId)
+            ->where('status', 'published')
+            ->first();
+
+        return $mahala ? $this->isCoordinateInsideMahala($mahala, $latitude, $longitude) : false;
+    }
+
+    private function isCoordinateInsideMahala(Mahala $mahala, float $latitude, float $longitude): bool
+    {
+        $coordinates = $this->normalizePolygonCoordinates($mahala->coordinates);
+
+        if (count($coordinates) < 3 || !$this->pointInPolygon($latitude, $longitude, $coordinates)) {
+            return false;
+        }
+
+        $holes = is_array($mahala->holes) ? $mahala->holes : [];
+
+        foreach ($holes as $hole) {
+            $holeCoordinates = $this->normalizePolygonCoordinates($hole);
+
+            if (count($holeCoordinates) >= 3 && $this->pointInPolygon($latitude, $longitude, $holeCoordinates)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizePolygonCoordinates(mixed $coordinates): array
+    {
+        if (!is_array($coordinates)) {
+            return [];
+        }
+
+        return collect($coordinates)
+            ->map(function ($coordinate) {
+                if (!is_array($coordinate) || !array_key_exists('latitude', $coordinate) || !array_key_exists('longitude', $coordinate)) {
+                    return null;
+                }
+
+                $latitude = filter_var($coordinate['latitude'], FILTER_VALIDATE_FLOAT);
+                $longitude = filter_var($coordinate['longitude'], FILTER_VALIDATE_FLOAT);
+
+                return $latitude !== false && $longitude !== false
+                    ? ['latitude' => $latitude, 'longitude' => $longitude]
+                    : null;
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function pointInPolygon(float $latitude, float $longitude, array $polygon): bool
+    {
+        $inside = false;
+        $count = count($polygon);
+
+        for ($i = 0, $j = $count - 1; $i < $count; $j = $i++) {
+            $current = $polygon[$i];
+            $previous = $polygon[$j];
+            $currentLatitude = (float) $current['latitude'];
+            $currentLongitude = (float) $current['longitude'];
+            $previousLatitude = (float) $previous['latitude'];
+            $previousLongitude = (float) $previous['longitude'];
+            $intersects = (($currentLatitude > $latitude) !== ($previousLatitude > $latitude))
+                && ($longitude < ($previousLongitude - $currentLongitude) * ($latitude - $currentLatitude) / (($previousLatitude - $currentLatitude) ?: 1.0) + $currentLongitude);
+
+            if ($intersects) {
+                $inside = !$inside;
+            }
+        }
+
+        return $inside;
     }
 
     private function formatPost(Post $post, ?int $userId = null): array
