@@ -10,6 +10,7 @@ use App\Models\Post;
 use App\Models\PostVote;
 use App\Services\ExpoPushNotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class VoteController extends Controller
@@ -148,6 +149,35 @@ class VoteController extends Controller
             'downvotes' => $downvotes,
             'score' => $upvotes - $downvotes,
             'my_vote' => $myVote,
+            'author_rahatluk_points' => $this->authorRahatlukPoints($comment->author),
         ];
+    }
+
+    private function authorRahatlukPoints(?int $authorId): int
+    {
+        if (!$authorId) {
+            return 0;
+        }
+
+        $postVotes = DB::table('post_votes')
+            ->join('posts', 'posts.id', '=', 'post_votes.post_id')
+            ->where('posts.author_user_id', $authorId)
+            ->selectRaw(
+                'SUM(CASE WHEN post_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN post_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+        $commentVotes = DB::table('comment_votes')
+            ->join('comments', 'comments.id', '=', 'comment_votes.reply_id')
+            ->where('comments.author', $authorId)
+            ->selectRaw(
+                'SUM(CASE WHEN comment_votes.value = 1 THEN 1 ELSE 0 END) as positive_votes, ' .
+                'SUM(CASE WHEN comment_votes.value = -1 THEN 1 ELSE 0 END) as negative_votes'
+            )
+            ->first();
+        $positiveVotes = (int) ($postVotes->positive_votes ?? 0) + (int) ($commentVotes->positive_votes ?? 0);
+        $negativeVotes = (int) ($postVotes->negative_votes ?? 0) + (int) ($commentVotes->negative_votes ?? 0);
+
+        return $positiveVotes - $negativeVotes;
     }
 }
