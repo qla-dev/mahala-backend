@@ -1070,6 +1070,7 @@ PROMPT;
             'topic_id' => $post->topic_id,
             'author_user_id' => $post->author_user_id,
             'author_username' => $post->author?->username,
+            'author_rahatluk_points' => $this->authorRahatlukPoints($post->author_user_id),
             'mahala_id' => $post->mahala_id,
             'content' => $post->content,
             'color_hex' => $this->resolveMahalaColor($post->mahala_id),
