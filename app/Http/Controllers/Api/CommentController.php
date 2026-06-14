@@ -125,6 +125,50 @@ class CommentController extends Controller
         }
     }
 
+    public function retry(Request $request, Comment $comment)
+    {
+        try {
+            if ((int) $comment->author !== (int) $request->user()->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za ovaj komentar.',
+                ], 403);
+            }
+
+            $post = Post::query()->findOrFail($comment->post_id);
+
+            $this->commentAiCheck($comment->content, [
+                'post_id' => $post->id,
+                'parent_id' => $comment->parent_id,
+                'mahala_id' => $post->mahala_id,
+                'topic_id' => $post->topic_id,
+            ]);
+
+            $comment->status = 1;
+            $comment->save();
+            $comment->load('authorUser');
+
+            $parent = $comment->parent_id ? Comment::query()->find($comment->parent_id) : null;
+            $this->createCommentNotifications($post, $comment, $parent);
+
+            return response()->json([
+                'message' => 'Komentar je ponovo provjeren i objavljen.',
+                'data' => $this->formatComment($comment->fresh('authorUser'), $request->user()->id),
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Komentar nije pronadjen.',
+                'error' => $e->getMessage(),
+            ], 404);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Doslo je do neocekivane greske pri ponovnom pokusaju komentara.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function commentAiCheck(string $content, array $context = []): void
     {
         if (!config('services.post_ai_moderation.enabled')) {
