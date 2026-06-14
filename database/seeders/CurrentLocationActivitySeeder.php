@@ -7,6 +7,7 @@ use App\Models\CommentVote;
 use App\Models\Notification;
 use App\Models\Post;
 use App\Models\PostVote;
+use App\Models\PostView;
 use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Database\Seeder;
@@ -68,6 +69,7 @@ class CurrentLocationActivitySeeder extends Seeder
                 ));
             }
 
+            $this->seedMissingCurrentScopePostVotes($allUsers);
             $this->seedAppleCommentVotes($appleUser, $createdPosts);
             $this->seedAppleNotifications($appleUser, $createdPosts, $dummyUsers);
         });
@@ -144,29 +146,134 @@ class CurrentLocationActivitySeeder extends Seeder
             'updated_at' => $createdAt,
         ]);
 
-        $eligibleVoters = $voters
-            ->reject(fn (User $user) => (int) $user->id === (int) $author->id)
-            ->values()
-            ->take(100);
-
-        foreach ($eligibleVoters as $voteIndex => $user) {
-            PostVote::query()->create([
-                'post_id' => $post->id,
-                'user_id' => $user->id,
-                'value' => $voteIndex % 9 === 0 ? -1 : 1,
-                'created_at' => $createdAt->copy()->addMinutes($voteIndex + 1),
-                'updated_at' => $createdAt->copy()->addMinutes($voteIndex + 1),
-            ]);
-        }
+        $this->seedPostVotes($post, $author, $voters, $index, $createdAt);
+        $this->seedPostViews($post, $author, $voters, $index, $createdAt);
 
         $this->createComments($post, $author, $voters, $appleUser, $index, $createdAt);
 
         return $post;
     }
 
+    private function seedPostViews(Post $post, ?User $author, $viewers, int $postIndex, Carbon $createdAt): void
+    {
+        if (!$post->image_uri) {
+            return;
+        }
+
+        $eligibleViewers = $viewers
+            ->reject(fn (User $user) => $author && (int) $user->id === (int) $author->id)
+            ->values();
+
+        if ($eligibleViewers->isEmpty()) {
+            return;
+        }
+
+        $maxViewers = $eligibleViewers->count();
+        $viewCount = min($maxViewers, $this->imagePostViewCountForPost($postIndex));
+        $rotation = ($postIndex * 29 + 7) % $maxViewers;
+        $orderedViewers = $eligibleViewers
+            ->slice($rotation)
+            ->concat($eligibleViewers->slice(0, $rotation))
+            ->values()
+            ->take($viewCount);
+
+        foreach ($orderedViewers as $viewIndex => $user) {
+            $viewedAt = $createdAt->copy()->addMinutes(8 + $viewIndex);
+
+            PostView::query()->forceCreate([
+                'post_id' => $post->id,
+                'user_id' => $user->id,
+                'created_at' => $viewedAt,
+                'updated_at' => $viewedAt,
+            ]);
+        }
+    }
+
+    private function seedMissingCurrentScopePostVotes($voters): void
+    {
+        $seedScopeIds = array_values(array_unique(self::CURRENT_SCOPE_IDS));
+
+        Post::query()
+            ->whereIn('mahala_id', $seedScopeIds)
+            ->whereDoesntHave('votes')
+            ->oldest()
+            ->get()
+            ->each(function (Post $post, int $index) use ($voters) {
+                $createdAt = $post->created_at instanceof Carbon
+                    ? $post->created_at->copy()
+                    : Carbon::now()->subHours($index + 1);
+
+                $this->seedPostVotes(
+                    post: $post,
+                    author: $post->author,
+                    voters: $voters,
+                    postIndex: $index + 100,
+                    createdAt: $createdAt,
+                );
+            });
+    }
+
+    private function seedPostVotes(Post $post, ?User $author, $voters, int $postIndex, Carbon $createdAt): void
+    {
+        $eligibleVoters = $voters
+            ->reject(fn (User $user) => $author && (int) $user->id === (int) $author->id)
+            ->values();
+
+        if ($eligibleVoters->isEmpty()) {
+            return;
+        }
+
+        $maxVoters = $eligibleVoters->count();
+        $voteCount = min($maxVoters, 18 + (($postIndex * 23 + 11) % 73));
+        $rotation = ($postIndex * 17 + 5) % $maxVoters;
+        $orderedVoters = $eligibleVoters
+            ->slice($rotation)
+            ->concat($eligibleVoters->slice(0, $rotation))
+            ->values()
+            ->take($voteCount);
+        $downvoteRatios = [0.04, 0.07, 0.10, 0.14, 0.18, 0.23, 0.29];
+        $downvoteCount = min(
+            $voteCount - 1,
+            max(1, (int) round($voteCount * $downvoteRatios[$postIndex % count($downvoteRatios)])),
+        );
+        $downvoteSlots = $this->downvoteSlots($voteCount, $downvoteCount, $postIndex);
+
+        foreach ($orderedVoters as $voteIndex => $user) {
+            $votedAt = $createdAt->copy()->addMinutes($voteIndex + 1);
+
+            PostVote::query()->forceCreate([
+                'post_id' => $post->id,
+                'user_id' => $user->id,
+                'value' => in_array($voteIndex, $downvoteSlots, true) ? -1 : 1,
+                'created_at' => $votedAt,
+                'updated_at' => $votedAt,
+            ]);
+        }
+    }
+
+    private function downvoteSlots(int $voteCount, int $downvoteCount, int $postIndex): array
+    {
+        $slots = [];
+        $offset = ($postIndex * 3 + 1) % $voteCount;
+
+        for ($i = 0; $i < $downvoteCount; $i++) {
+            $slot = ((int) floor((($i + 0.5) * $voteCount) / $downvoteCount) + $offset) % $voteCount;
+
+            while (in_array($slot, $slots, true)) {
+                $slot = ($slot + 1) % $voteCount;
+            }
+
+            $slots[] = $slot;
+        }
+
+        sort($slots);
+
+        return $slots;
+    }
+
     private function createComments(Post $post, User $author, $users, User $appleUser, int $postIndex, Carbon $createdAt): void
     {
-        $commentCount = 25 + (($postIndex * 7) % 21);
+        $commentCount = $this->commentCountForPost($postIndex);
         $rootComments = [];
         $commentTexts = $this->commentTexts();
 
@@ -202,6 +309,16 @@ class CurrentLocationActivitySeeder extends Seeder
                 $rootComments[] = $comment;
             }
         }
+    }
+
+    private function commentCountForPost(int $postIndex): int
+    {
+        return 12 + ($postIndex % 40);
+    }
+
+    private function imagePostViewCountForPost(int $postIndex): int
+    {
+        return 35 + $postIndex;
     }
 
     private function shouldSeedPostAsAnonymous(int $index): bool
