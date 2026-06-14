@@ -173,15 +173,7 @@ class PostController extends Controller
             $validated = $request->validate($this->rules());
             $attributes = $this->buildAttributes($validated);
             $attributes['author_user_id'] = $request->user()->id;
-            $isInsideMahala = $this->isCoordinateInsideMahalaId(
-                $attributes['mahala_id'],
-                (float) $validated['user_latitude'],
-                (float) $validated['user_longitude'],
-            );
-
-            if ($isInsideMahala === false) {
-                $attributes['status'] = 0;
-            }
+            $isInsideMahala = null;
 
             $attributes['image_uri'] = $this->storeUploadedImage($request);
 
@@ -313,30 +305,6 @@ class PostController extends Controller
                 ], 403);
             }
 
-            $validated = $request->validate([
-                'user_latitude' => ['required', 'numeric', 'between:-90,90'],
-                'user_longitude' => ['required', 'numeric', 'between:-180,180'],
-            ]);
-
-            $isInsideMahala = $this->isCoordinateInsideMahalaId(
-                $post->mahala_id,
-                (float) $validated['user_latitude'],
-                (float) $validated['user_longitude'],
-            );
-
-            if ($isInsideMahala === false) {
-                $post->status = 0;
-                $post->save();
-
-                return response()->json([
-                    'message' => 'Objava je ostala u draftu jer lokacija nije u toj MAHALI.',
-                    'data' => $this->formatPost($post->fresh(), $request->user()->id),
-                    'meta' => [
-                        'location_inside_mahala' => false,
-                    ],
-                ], 200);
-            }
-
             $attributes = [
                 'topic_id' => $post->topic_id,
                 'mahala_id' => $post->mahala_id,
@@ -353,7 +321,7 @@ class PostController extends Controller
                 'message' => 'Objava je ponovo provjerena i objavljena.',
                 'data' => $this->formatPost($post->fresh(), $request->user()->id),
                 'meta' => [
-                    'location_inside_mahala' => true,
+                    'location_inside_mahala' => null,
                 ],
             ], 200);
         } catch (ValidationException $e) {
@@ -422,8 +390,8 @@ class PostController extends Controller
             'is_anonymous' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'integer'],
             'hidden' => ['sometimes', 'nullable', 'boolean'],
-            'user_latitude' => [$isUpdate ? 'sometimes' : 'required', 'numeric', 'between:-90,90'],
-            'user_longitude' => [$isUpdate ? 'sometimes' : 'required', 'numeric', 'between:-180,180'],
+            'user_latitude' => ['sometimes', 'numeric', 'between:-90,90'],
+            'user_longitude' => ['sometimes', 'numeric', 'between:-180,180'],
         ];
     }
 
