@@ -14,42 +14,53 @@ use App\Http\Controllers\Api\UserSettingController;
 use App\Http\Controllers\Api\VoteController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('auth/register', [AuthController::class, 'register']);
-Route::post('auth/register-user', [AuthController::class, 'register']);
-Route::post('auth/register/code', [AuthController::class, 'sendRegistrationCode']);
-Route::post('auth/login', [AuthController::class, 'login']);
-Route::post('auth/google', [AuthController::class, 'google']);
-Route::post('auth/apple', [AuthController::class, 'apple']);
-Route::middleware('auth:sanctum')->get('auth/me', [AuthController::class, 'me']);
-Route::middleware('auth:sanctum')->patch('auth/profile', [AuthController::class, 'updateProfile']);
-Route::middleware('auth:sanctum')->post('auth/logout', [AuthController::class, 'logout']);
-Route::middleware('auth:sanctum')->post('auth/change-password', [AuthController::class, 'changePassword']);
-Route::middleware('auth:sanctum')->get('user-settings', [UserSettingController::class, 'show']);
-Route::middleware('auth:sanctum')->patch('user-settings', [UserSettingController::class, 'update']);
-Route::middleware('auth:sanctum')->get('notifications', [NotificationController::class, 'index']);
-Route::middleware('auth:sanctum')->post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
-Route::middleware('auth:sanctum')->post('push-tokens', [PushTokenController::class, 'store']);
-Route::middleware('auth:sanctum')->post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
-Route::middleware('auth:sanctum')->post('location-debug-reports', [LocationDebugReportController::class, 'store']);
-
-Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
-Route::middleware('auth:sanctum')->post('mahalas', [MahalaController::class, 'store']);
-Route::middleware('auth:sanctum')->match(['put', 'patch'], 'mahalas/{mahala}', [MahalaController::class, 'update']);
-Route::middleware('auth:sanctum')->delete('mahalas/{mahala}', [MahalaController::class, 'destroy']);
-Route::apiResource('mahalas', MahalaController::class)->except(['store', 'update', 'destroy']);
+Route::prefix('auth')->group(function () {
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('register-user', [AuthController::class, 'register']);
+    Route::post('register/code', [AuthController::class, 'sendRegistrationCode']);
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('google', [AuthController::class, 'google']);
+    Route::post('apple', [AuthController::class, 'apple']);
+});
 
 Route::get('startup', StartupController::class);
-
-Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas']);
-Route::apiResource('topics', TopicController::class);
-
 Route::get('feed', [PostController::class, 'feed']);
+Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas']);
+Route::apiResource('mahalas', MahalaController::class)->only(['index', 'show']);
+Route::apiResource('topics', TopicController::class)->only(['index', 'show']);
+Route::apiResource('posts', PostController::class)->only(['index', 'show']);
 Route::get('posts/{post}/comments', [CommentController::class, 'index']);
-Route::post('posts/{post}/comments', [CommentController::class, 'store']);
-Route::middleware('auth:sanctum')->post('posts', [PostController::class, 'store']);
-Route::middleware('auth:sanctum')->post('posts/{post}/retry', [PostController::class, 'retry']);
-Route::middleware('auth:sanctum')->post('posts/{post}/view', [PostController::class, 'view']);
-Route::middleware('auth:sanctum')->post('posts/{post}/vote', [VoteController::class, 'votePost']);
-Route::middleware('auth:sanctum')->delete('posts/{post}', [PostController::class, 'destroy']);
-Route::middleware('auth:sanctum')->post('comments/{comment}/vote', [VoteController::class, 'voteComment']);
-Route::apiResource('posts', PostController::class)->except(['store', 'destroy']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('auth')->group(function () {
+        Route::get('me', [AuthController::class, 'me']);
+        Route::patch('profile', [AuthController::class, 'updateProfile']);
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::post('change-password', [AuthController::class, 'changePassword']);
+    });
+
+    Route::get('user-settings', [UserSettingController::class, 'show']);
+    Route::patch('user-settings', [UserSettingController::class, 'update']);
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
+    Route::post('push-tokens', [PushTokenController::class, 'store']);
+    Route::post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
+    Route::post('location-debug-reports', [LocationDebugReportController::class, 'store']);
+
+    Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
+    Route::post('mahalas', [MahalaController::class, 'store']);
+    Route::match(['put', 'patch'], 'mahalas/{mahala}', [MahalaController::class, 'update']);
+    Route::delete('mahalas/{mahala}', [MahalaController::class, 'destroy']);
+
+    Route::post('topics', [TopicController::class, 'store']);
+    Route::match(['put', 'patch'], 'topics/{topic}', [TopicController::class, 'update']);
+    Route::delete('topics/{topic}', [TopicController::class, 'destroy']);
+
+    Route::post('posts', [PostController::class, 'store']);
+    Route::post('posts/{post}/comments', [CommentController::class, 'store']);
+    Route::post('posts/{post}/retry', [PostController::class, 'retry']);
+    Route::post('posts/{post}/view', [PostController::class, 'view']);
+    Route::post('posts/{post}/vote', [VoteController::class, 'votePost']);
+    Route::delete('posts/{post}', [PostController::class, 'destroy']);
+    Route::post('comments/{comment}/vote', [VoteController::class, 'voteComment']);
+});
