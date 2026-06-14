@@ -19,32 +19,14 @@ class CurrentLocationActivitySeeder extends Seeder
     private const APPLE_USERNAME = 'apple-test-user';
 
     private const CURRENT_SCOPE_IDS = [
+        'sarajevo' => 'sarajevo-71000',
         'mahala-sarajevo' => 'sarajevo-71000',
         'novi-grad' => '10871',
         'dobrinja' => 'user-dobrinja',
+        'dobrinja-1' => 'user-dobrinja-1',
+        'dobrinja-2' => 'user-dobrinja-2',
+        'dobrinja-3' => 'user-dobrinja-3',
         'c5' => 'user-c5',
-    ];
-
-    private const GENERAL_TOPICS = [
-        'glavna',
-        'eventi',
-        'spotted',
-        'posao',
-        'ljubimci',
-        'izgubljeno-i-nadjeno',
-        'politika',
-        'nocna-smjena',
-        'gaming',
-        'sport',
-        'prodajem-i-kupujem',
-        'dating',
-    ];
-
-    private const LOCAL_TOPICS = [
-        'novi-grad-kvart-ideje',
-        'dobrinja-lift-i-ulaz',
-        'c5-mikro-dojave',
-        'c5-basket-termin',
     ];
 
     public function run(): void
@@ -377,20 +359,75 @@ class CurrentLocationActivitySeeder extends Seeder
 
     private function buildPostDrafts(array $contents): array
     {
-        $scopeIds = array_values(self::CURRENT_SCOPE_IDS);
-        $topicPool = [
-            ...self::GENERAL_TOPICS,
-            ...self::LOCAL_TOPICS,
-        ];
+        $isAppleDraftSet = str_starts_with($contents[0] ?? '', 'Testiram koliko brzo');
+        $topicMap = $isAppleDraftSet
+            ? $this->applePostTopicMap()
+            : $this->dummyPostTopicMap();
 
         return collect($contents)
             ->values()
-            ->map(fn (string $content, int $index) => [
-                'mahala_id' => $scopeIds[$index % count($scopeIds)],
-                'topic_id' => $topicPool[$index % count($topicPool)],
-                'content' => $content,
-            ])
+            ->map(function (string $content, int $index) use ($topicMap) {
+                [$scopeKey, $topicId] = $topicMap[$index] ?? ['sarajevo', 'glavna'];
+
+                return [
+                    'mahala_id' => self::CURRENT_SCOPE_IDS[$scopeKey],
+                    'topic_id' => $topicId,
+                    'content' => $content,
+                ];
+            })
             ->all();
+    }
+
+    private function dummyPostTopicMap(): array
+    {
+        return [
+            ['dobrinja', 'dobrinja-lift-i-ulaz'],
+            ['dobrinja-2', 'dobrinja-2-haustor-dogovor'],
+            ['novi-grad', 'novi-grad-kvart-ideje'],
+            ['dobrinja', 'dobrinja-lift-i-ulaz'],
+            ['c5', 'c5-basket-termin'],
+            ['dobrinja', 'izgubljeno-i-nadjeno'],
+            ['dobrinja', 'ljubimci'],
+            ['novi-grad', 'posao'],
+            ['sarajevo', 'politika'],
+            ['dobrinja-3', 'dobrinja-3-garazna-scena'],
+            ['dobrinja-2', 'dobrinja-2-haustor-dogovor'],
+            ['dobrinja', 'prodajem-i-kupujem'],
+            ['dobrinja', 'sport'],
+            ['dobrinja', 'izgubljeno-i-nadjeno'],
+            ['sarajevo', 'spotted'],
+            ['c5', 'nocna-smjena'],
+            ['dobrinja-1', 'dobrinja-1-djeciji-ritam'],
+            ['dobrinja-2', 'dobrinja-2-haustor-dogovor'],
+            ['dobrinja-2', 'dobrinja-2-haustor-dogovor'],
+            ['dobrinja', 'ljubimci'],
+        ];
+    }
+
+    private function applePostTopicMap(): array
+    {
+        return [
+            ['c5', 'c5-mikro-dojave'],
+            ['dobrinja-2', 'dobrinja-2-haustor-dogovor'],
+            ['dobrinja', 'spotted'],
+            ['c5', 'c5-basket-termin'],
+            ['novi-grad', 'posao'],
+            ['dobrinja', 'ljubimci'],
+            ['dobrinja', 'izgubljeno-i-nadjeno'],
+            ['novi-grad', 'politika'],
+            ['c5', 'nocna-smjena'],
+            ['c5', 'gaming'],
+            ['c5', 'sport'],
+            ['dobrinja', 'prodajem-i-kupujem'],
+            ['sarajevo', 'dating'],
+            ['dobrinja', 'dobrinja-lift-i-ulaz'],
+            ['novi-grad', 'novi-grad-kvart-ideje'],
+            ['c5', 'c5-mikro-dojave'],
+            ['sarajevo', 'glavna'],
+            ['sarajevo', 'eventi'],
+            ['dobrinja', 'ljubimci'],
+            ['novi-grad', 'posao'],
+        ];
     }
 
     private function commentTexts(): array
