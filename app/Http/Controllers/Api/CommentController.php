@@ -173,6 +173,36 @@ class CommentController extends Controller
         }
     }
 
+    public function destroy(Request $request, Comment $comment)
+    {
+        try {
+            if ((int) $comment->author !== (int) $request->user()->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za ovaj komentar.',
+                ], 403);
+            }
+
+            Comment::query()
+                ->where('parent_id', $comment->id)
+                ->delete();
+            $comment->delete();
+
+            return response()->json([
+                'message' => 'Komentar je uspjesno obrisan.',
+            ], 200);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'Doslo je do greske u bazi pri brisanju komentara.',
+                'error' => $e->getMessage(),
+            ], 500);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Doslo je do neocekivane greske pri brisanju komentara.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function commentAiCheck(string $content, array $context = []): void
     {
         if (!config('services.post_ai_moderation.enabled')) {

@@ -215,10 +215,23 @@ class TopicController extends Controller
         }
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         try {
             $topic = Topic::query()->findOrFail($id);
+
+            if ((string) $topic->created_by_user_id !== (string) $request->user()?->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za ovu temu.',
+                ], 403);
+            }
+
+            if ($topic->is_system) {
+                return response()->json([
+                    'message' => 'Sistemske teme nije moguce obrisati.',
+                ], 422);
+            }
+
             $topic->delete();
 
             return response()->json([

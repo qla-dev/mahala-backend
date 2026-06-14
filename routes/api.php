@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('posts/{post}/comments', [CommentController::class, 'store']);
     Route::post('posts/{post}/retry', [PostController::class, 'retry']);
     Route::post('comments/{comment}/retry', [CommentController::class, 'retry']);
+    Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
     Route::post('posts/{post}/view', [PostController::class, 'view']);
     Route::post('posts/{post}/vote', [VoteController::class, 'votePost']);
     Route::delete('posts/{post}', [PostController::class, 'destroy']);

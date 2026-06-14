@@ -198,10 +198,17 @@ class MahalaController extends Controller
         }
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         try {
             $mahala = Mahala::query()->findOrFail($id);
+
+            if ((string) $mahala->owner_id !== (string) $request->user()?->id) {
+                return response()->json([
+                    'message' => 'Nemate dozvolu za ovu MAHALU.',
+                ], 403);
+            }
+
             $mahala->delete();
 
             return response()->json([
