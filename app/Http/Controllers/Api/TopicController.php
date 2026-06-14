@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -69,6 +70,7 @@ class TopicController extends Controller
             $mahalaIds = $this->normalizeMahalaIds($payload['mahala_ids']);
             $publishedMahalaIds = $this->publishedMahalaIds($mahalaIds);
             $topicScopeIds = $this->withParentTopicScopes($publishedMahalaIds);
+            $blockedUserIds = $this->blockedUserIds($request->user('sanctum')?->id);
 
             if ($topicScopeIds === []) {
                 return response()->json([
@@ -76,10 +78,12 @@ class TopicController extends Controller
                 ], 200);
             }
 
-            $topics = Topic::query()
+            $topicsQuery = Topic::query()
                 ->whereIn('mahala_id', $topicScopeIds)
                 ->orderBy('is_system', 'desc')
-                ->orderBy('created_at')
+                ->orderBy('created_at');
+            $this->applyAuthorBlockFilter($topicsQuery, $blockedUserIds, 'created_by_user_id');
+            $topics = $topicsQuery
                 ->get()
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
@@ -99,17 +103,20 @@ class TopicController extends Controller
     public function index(Request $request)
     {
         try {
+            $blockedUserIds = $this->blockedUserIds($request->user('sanctum')?->id);
             $publishedMahalaIds = $request->filled('mahala_id')
                 ? $this->publishedMahalaIds([(string) $request->query('mahala_id')])
                 : null;
 
-            $topics = Topic::query()
+            $topicsQuery = Topic::query()
                 ->when(
                     $request->filled('mahala_id'),
                     fn ($query) => $query->whereIn('mahala_id', $publishedMahalaIds),
                     fn ($query) => $query->whereHas('mahala', fn ($mahalaQuery) => $mahalaQuery->where('status', 'published')),
                 )
-                ->latest()
+                ->latest();
+            $this->applyAuthorBlockFilter($topicsQuery, $blockedUserIds, 'created_by_user_id');
+            $topics = $topicsQuery
                 ->get()
                 ->map(fn (Topic $topic) => $this->formatTopic($topic));
 
@@ -153,10 +160,12 @@ class TopicController extends Controller
         }
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
         try {
-            $topic = Topic::query()->findOrFail($id);
+            $topicQuery = Topic::query()->where('id', $id);
+            $this->applyAuthorBlockFilter($topicQuery, $this->blockedUserIds($request->user('sanctum')?->id), 'created_by_user_id');
+            $topic = $topicQuery->firstOrFail();
 
             return response()->json([
                 'data' => $this->formatTopic($topic),
@@ -293,6 +302,31 @@ class TopicController extends Controller
             'created_at' => $topic->created_at,
             'updated_at' => $topic->updated_at,
         ];
+    }
+
+    private function blockedUserIds(?int $userId): array
+    {
+        if (!$userId) {
+            return [];
+        }
+
+        return DB::table('blocked')
+            ->where('user_id', $userId)
+            ->pluck('blocked_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function applyAuthorBlockFilter($query, array $blockedUserIds, string $column)
+    {
+        if ($blockedUserIds === []) {
+            return $query;
+        }
+
+        return $query->where(function ($query) use ($blockedUserIds, $column) {
+            $query->whereNull($column)->orWhereNotIn($column, $blockedUserIds);
+        });
     }
 
     private function resolveSlug(string $name): string

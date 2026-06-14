@@ -56,6 +56,8 @@ class PostController extends Controller
             $page = (int) ($payload['page'] ?? 1);
             $limit = (int) ($payload['limit'] ?? 10);
             $sort = $payload['sort'] ?? 'recent';
+            $userId = $request->user('sanctum')?->id;
+            $blockedUserIds = $this->blockedUserIds($userId);
 
             if ($feedScopeIds === []) {
                 return response()->json([
@@ -64,17 +66,17 @@ class PostController extends Controller
                 ], 200);
             }
 
-            $userId = $request->user('sanctum')?->id;
             $engagementWindowStart = Carbon::now()->subDays(10);
 
             $postsQuery = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
+                ->with(['comments' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author')->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount([
                     'views as views_count',
-                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                    'comments as active_comments_count' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author'),
                     'comments as recent_comments_count' => fn ($query) => $query
                         ->where('status', 1)
+                        ->when($blockedUserIds !== [], fn ($query) => $this->applyAuthorBlockFilter($query, $blockedUserIds, 'author'))
                         ->where('created_at', '>=', $engagementWindowStart),
                     'votes as recent_upvotes_count' => fn ($query) => $query
                         ->where('value', 1)
@@ -94,12 +96,13 @@ class PostController extends Controller
                         fn ($query) => $query->latest(),
                     ),
                 );
+            $this->applyAuthorBlockFilter($postsQuery, $blockedUserIds, 'author_user_id');
 
             $paginatedPosts = $postsQuery->paginate($limit, ['*'], 'page', $page);
 
             $posts = $paginatedPosts
                 ->getCollection()
-                ->map(fn (Post $post) => $this->formatPost($post, $userId));
+                ->map(fn (Post $post) => $this->formatPost($post, $userId, $blockedUserIds));
 
             return response()->json([
                 'data' => $posts,
@@ -123,16 +126,17 @@ class PostController extends Controller
     {
         try {
             $userId = $request->user('sanctum')?->id;
+            $blockedUserIds = $this->blockedUserIds($userId);
             $publishedMahalaIds = $request->filled('mahala_id')
                 ? $this->publishedMahalaIds([(string) $request->query('mahala_id')])
                 : null;
 
-            $posts = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
+            $postsQuery = Post::query()
+                ->with(['comments' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author')->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount([
                     'views as views_count',
-                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                    'comments as active_comments_count' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author'),
                 ])
                 ->when($request->filled('topic_id'), fn ($query) => $query->where('topic_id', $request->query('topic_id')))
                 ->when($request->filled('channel_id'), fn ($query) => $query->where(
@@ -145,9 +149,12 @@ class PostController extends Controller
                     fn ($query) => $query->whereHas('mahala', fn ($mahalaQuery) => $mahalaQuery->where('status', 'published')),
                 )
                 ->where('status', 1)
-                ->latest()
+                ->latest();
+            $this->applyAuthorBlockFilter($postsQuery, $blockedUserIds, 'author_user_id');
+
+            $posts = $postsQuery
                 ->get()
-                ->map(fn (Post $post) => $this->formatPost($post, $userId));
+                ->map(fn (Post $post) => $this->formatPost($post, $userId, $blockedUserIds));
 
             return response()->json([
                 'data' => $posts,
@@ -212,17 +219,21 @@ class PostController extends Controller
     public function show(Request $request, string $id)
     {
         try {
-            $post = Post::query()
-                ->with(['comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest()])
+            $userId = $request->user('sanctum')?->id;
+            $blockedUserIds = $this->blockedUserIds($userId);
+            $postQuery = Post::query()
+                ->with(['comments' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author')->with('authorUser')->withVoteCounts()->latest()])
                 ->withVoteCounts()
                 ->withCount([
                     'views as views_count',
-                    'comments as active_comments_count' => fn ($query) => $query->where('status', 1),
+                    'comments as active_comments_count' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author'),
                 ])
-                ->findOrFail($id);
+                ->where('id', $id);
+            $this->applyAuthorBlockFilter($postQuery, $blockedUserIds, 'author_user_id');
+            $post = $postQuery->firstOrFail();
 
             return response()->json([
-                'data' => $this->formatPost($post, $request->user('sanctum')?->id),
+                'data' => $this->formatPost($post, $userId, $blockedUserIds),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -1066,14 +1077,15 @@ PROMPT;
         return $inside;
     }
 
-    private function formatPost(Post $post, ?int $userId = null): array
+    private function formatPost(Post $post, ?int $userId = null, array $blockedUserIds = []): array
     {
         $post->loadMissing([
             'author',
-            'comments' => fn ($query) => $query->where('status', 1)->with('authorUser')->withVoteCounts()->latest(),
+            'comments' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author')->with('authorUser')->withVoteCounts()->latest(),
         ]);
         $comments = $post->comments
             ->where('status', 1)
+            ->reject(fn (Comment $comment) => $this->isBlockedAuthor($comment->author, $blockedUserIds))
             ->values()
             ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
         $upvotes = (int) ($post->upvotes_count ?? $post->votes()->where('value', 1)->count());
@@ -1104,6 +1116,36 @@ PROMPT;
             'created_at' => $post->created_at,
             'updated_at' => $post->updated_at,
         ];
+    }
+
+    private function blockedUserIds(?int $userId): array
+    {
+        if (!$userId) {
+            return [];
+        }
+
+        return DB::table('blocked')
+            ->where('user_id', $userId)
+            ->pluck('blocked_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function applyAuthorBlockFilter($query, array $blockedUserIds, string $column)
+    {
+        if ($blockedUserIds === []) {
+            return $query;
+        }
+
+        return $query->where(function ($query) use ($blockedUserIds, $column) {
+            $query->whereNull($column)->orWhereNotIn($column, $blockedUserIds);
+        });
+    }
+
+    private function isBlockedAuthor($authorId, array $blockedUserIds): bool
+    {
+        return $authorId !== null && in_array((int) $authorId, $blockedUserIds, true);
     }
 
     private function formatComment(Comment $comment, ?int $userId = null): array

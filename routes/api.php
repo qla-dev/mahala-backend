@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\MahalaController;
+use App\Http\Controllers\Api\BlockedController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\LocationDebugReportController;
@@ -43,6 +44,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('user-settings', [UserSettingController::class, 'update']);
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
+    Route::get('blocked', [BlockedController::class, 'index']);
+    Route::post('blocked', [BlockedController::class, 'store']);
     Route::post('push-tokens', [PushTokenController::class, 'store']);
     Route::post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
     Route::post('location-debug-reports', [LocationDebugReportController::class, 'store']);

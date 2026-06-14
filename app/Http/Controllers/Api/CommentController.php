@@ -27,13 +27,17 @@ class CommentController extends Controller
         try {
             Post::query()->findOrFail($post);
             $userId = $request->user('sanctum')?->id;
+            $blockedUserIds = $this->blockedUserIds($userId);
 
-            $comments = Comment::query()
+            $commentsQuery = Comment::query()
                 ->with('authorUser')
                 ->withVoteCounts()
                 ->where('post_id', $post)
                 ->where('status', 1)
-                ->latest()
+                ->latest();
+            $this->applyAuthorBlockFilter($commentsQuery, $blockedUserIds, 'author');
+
+            $comments = $commentsQuery
                 ->get()
                 ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
 
@@ -462,6 +466,31 @@ PROMPT;
             'created_at' => $comment->created_at,
             'updated_at' => $comment->updated_at,
         ];
+    }
+
+    private function blockedUserIds(?int $userId): array
+    {
+        if (!$userId) {
+            return [];
+        }
+
+        return DB::table('blocked')
+            ->where('user_id', $userId)
+            ->pluck('blocked_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function applyAuthorBlockFilter($query, array $blockedUserIds, string $column)
+    {
+        if ($blockedUserIds === []) {
+            return $query;
+        }
+
+        return $query->where(function ($query) use ($blockedUserIds, $column) {
+            $query->whereNull($column)->orWhereNotIn($column, $blockedUserIds);
+        });
     }
 
     private function authorRahatlukPoints(?int $authorId): int
