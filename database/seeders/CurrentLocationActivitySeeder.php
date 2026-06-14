@@ -136,8 +136,8 @@ class CurrentLocationActivitySeeder extends Seeder
             'author_user_id' => $author->id,
             'mahala_id' => $draft['mahala_id'],
             'content' => $draft['content'],
-            'image_uri' => null,
-            'is_anonymous' => false,
+            'image_uri' => $this->dummyImageUri($index),
+            'is_anonymous' => $this->shouldSeedPostAsAnonymous($index),
             'status' => 1,
             'hidden' => false,
             'created_at' => $createdAt,
@@ -192,7 +192,7 @@ class CurrentLocationActivitySeeder extends Seeder
                 'parent_id' => $parent?->id,
                 'author' => $commentAuthor->id,
                 'content' => $commentTexts[($postIndex * 17 + $i) % count($commentTexts)],
-                'is_anonymous' => false,
+                'is_anonymous' => $this->shouldSeedCommentAsAnonymous($postIndex, $i),
                 'status' => 1,
                 'created_at' => $createdAt->copy()->addMinutes(140 + $i * 3),
                 'updated_at' => $createdAt->copy()->addMinutes(140 + $i * 3),
@@ -202,6 +202,25 @@ class CurrentLocationActivitySeeder extends Seeder
                 $rootComments[] = $comment;
             }
         }
+    }
+
+    private function shouldSeedPostAsAnonymous(int $index): bool
+    {
+        return in_array($index % 5, [1, 4], true);
+    }
+
+    private function shouldSeedCommentAsAnonymous(int $postIndex, int $commentIndex): bool
+    {
+        return (($postIndex * 3 + $commentIndex) % 5) < 2;
+    }
+
+    private function dummyImageUri(int $index): ?string
+    {
+        if (($index % 10) >= 6) {
+            return null;
+        }
+
+        return sprintf('https://picsum.photos/seed/mahala-%02d/1200/900', $index + 1);
     }
 
     private function seedAppleNotifications(User $appleUser, $posts, $dummyUsers): void
@@ -322,48 +341,43 @@ class CurrentLocationActivitySeeder extends Seeder
             'Treba mi polovna tastatura za klinca, osnovno da radi za školu. Ako neko prodaje, pišite.',
             'Danas na igralištu turnir u malom fudbalu, roditelji već navijaju kao finale lige.',
             'Ako ste izgubili karticu za teretanu, ostavljena je kod trafike pored stanice.',
-            'Spotted: djevojka sa zelenim kišobranom kod tramvaja jutros, vratila si mi rukavicu. Hvala ti.',
+            'Djevojka sa zelenim kišobranom kod tramvaja jutros mi je vratila rukavicu. Hvala ti.',
             'Ko radi noćnu smjenu, pekara kod kružnog ima svježe kifle i poslije ponoći. Mala pobjeda.',
             'Ima li neko iskustvo sa vrtićem kod škole? Zanima me kako rješavaju adaptaciju prve sedmice.',
             'Kod garaža se opet ostavlja kabasti otpad mimo termina. Hajmo barem jednom dogovoreno.',
             'Sutra ujutro čistimo snijeg ispred ulaza ako padne kako najavljuju. Lopate su u podrumu.',
             'Ako nekome treba društvo za šetnju psa navečer, mi smo obično kod parka oko 21h.',
-        ]);
+        ], $this->dummyPostTopicMap());
     }
 
     private function applePostDrafts(): array
     {
         return $this->buildPostDrafts([
-            'Testiram koliko brzo mahala vidi novu objavu: kod C5 trenutno slobodna tri parking mjesta.',
+            'Kod C5 su trenutno slobodna tri parking mjesta, da testiram koliko brzo mahala vidi novu objavu.',
             'Na Dobrinji se opet priča o maloj biblioteci u haustoru. Ja donosim prve knjige ako ima zainteresovanih.',
-            'Spotted: momak sa plavom kapom kod Konzuma, ispala ti je karta. Predao sam je radnici.',
+            'Momku sa plavom kapom kod Konzuma je ispala karta. Predao sam je radnici.',
             'Ima li ekipa za kratku partiju basketa večeras? Mogu donijeti loptu i markere.',
             'Ako neko traži posao preko ljeta, kafić pored stanice traži pomoć u drugoj smjeni.',
             'U parku je neko ostavio zdjelicu vode za pse. Lijep mali potez, samo da je ne sklonimo slučajno.',
-            'Za izgubljeno i nađeno: ključevi sa crvenim privjeskom su kod mene, nađeni ispred ulaza.',
+            'Ključevi sa crvenim privjeskom su kod mene, nađeni su ispred ulaza.',
             'Politika parkinga nam je postala ozbiljnija od dnevnika. Treba normalan dogovor, ne rat ceduljama.',
-            'Noćna smjena javlja: sve mirno osim jednog alarma koji se pali svako deset minuta.',
-            'Gaming ekipa, ima li ko za lokalni FC turnir u nedjelju? Bez nervoze, samo zezanje.',
-            'Sport update: teren iza škole je suh i rasvjeta radi. Termin poslije 19h izgleda slobodan.',
+            'Sve je mirno osim jednog alarma koji se pali svako deset minuta.',
+            'Ima li ko za lokalni FC turnir u nedjelju? Bez nervoze, samo zezanje.',
+            'Teren iza škole je suh i rasvjeta radi. Termin poslije 19h izgleda slobodan.',
             'Prodajem mali sto za balkon, očuvan, samo mi više ne stane. Preuzimanje na Dobrinji.',
-            'Dating tema bez drame: gdje ljudi ovdje normalno izađu na kafu bez preglasne muzike?',
+            'Gdje ljudi ovdje normalno izađu na kafu bez preglasne muzike?',
             'Kod zgrade se čuje čudan zvuk iz lifta, ako se još kome desilo neka napiše prije nego zovemo servis.',
-            'Novi Grad ideja: još jedna kanta kod stanice bi spasila pola trotoara poslije velikog odmora.',
-            'C5 dojava: dostavljač je ostavio pogrešnu kesu ispred ulaza B. Kod mene je dok se vlasnik javi.',
-            'Glavna stvar danas: komšija popravio klupu bez velike priče. Takve objave treba više gurati.',
-            'Eventi: mala svirka kod platoa u petak ako vrijeme posluži. Neko zna tačan sat?',
-            'Ljubimci: bijela maca se vrti oko podruma dva dana. Ako je nečija, djeluje gladno ali pitomo.',
-            'Posao/učenje: tražim nekoga ko zna Excel da objasni par stvari za sat vremena, plaćam kafu i čas.',
-        ]);
+            'Još jedna kanta kod stanice bi spasila pola trotoara poslije velikog odmora.',
+            'Dostavljač je ostavio pogrešnu kesu ispred ulaza B. Kod mene je dok se vlasnik javi.',
+            'Komšija je popravio klupu bez velike priče. Takve objave treba više gurati.',
+            'Mala svirka je kod platoa u petak ako vrijeme posluži. Neko zna tačan sat?',
+            'Bijela maca se vrti oko podruma dva dana. Ako je nečija, djeluje gladno ali pitomo.',
+            'Tražim nekoga ko zna Excel da objasni par stvari za sat vremena, plaćam kafu i čas.',
+        ], $this->applePostTopicMap());
     }
 
-    private function buildPostDrafts(array $contents): array
+    private function buildPostDrafts(array $contents, array $topicMap): array
     {
-        $isAppleDraftSet = str_starts_with($contents[0] ?? '', 'Testiram koliko brzo');
-        $topicMap = $isAppleDraftSet
-            ? $this->applePostTopicMap()
-            : $this->dummyPostTopicMap();
-
         return collect($contents)
             ->values()
             ->map(function (string $content, int $index) use ($topicMap) {
@@ -499,6 +513,8 @@ class CurrentLocationActivitySeeder extends Seeder
             'dž' => 'dz',
         ]);
 
-        return sprintf('seed-%s-%03d', preg_replace('/[^a-z0-9]+/', '-', $base), $index);
+        $username = trim((string) preg_replace('/[^a-z0-9]+/', '-', $base), '-');
+
+        return $username !== '' ? $username : sprintf('korisnik-%03d', $index);
     }
 }
