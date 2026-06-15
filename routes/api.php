@@ -31,6 +31,7 @@ Route::apiResource('mahalas', MahalaController::class)->only(['index', 'show']);
 Route::apiResource('topics', TopicController::class)->only(['index', 'show']);
 Route::apiResource('posts', PostController::class)->only(['index', 'show']);
 Route::get('posts/{post}/comments', [CommentController::class, 'index']);
+Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('auth')->group(function () {
@@ -50,7 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
     Route::post('location-debug-reports', [LocationDebugReportController::class, 'store']);
 
-    Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
+    
     Route::post('mahalas', [MahalaController::class, 'store']);
     Route::match(['put', 'patch'], 'mahalas/{mahala}', [MahalaController::class, 'update']);
     Route::delete('mahalas/{mahala}', [MahalaController::class, 'destroy']);
