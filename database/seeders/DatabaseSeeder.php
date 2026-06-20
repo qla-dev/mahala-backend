@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             InnovativeTopicSeeder::class,
             InnovativePostSeeder::class,
             CurrentLocationActivitySeeder::class,
+            AppleTestUserNotificationSeeder::class,
         ]);
     }
 }
