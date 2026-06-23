@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\BlockedController;
 use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\ClientLogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\LocationDebugReportController;
 use App\Http\Controllers\Api\PostController;
@@ -32,6 +33,7 @@ Route::apiResource('topics', TopicController::class)->only(['index', 'show']);
 Route::apiResource('posts', PostController::class)->only(['index', 'show']);
 Route::get('posts/{post}/comments', [CommentController::class, 'index']);
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
+Route::post('logs', [ClientLogController::class, 'store'])->middleware('throttle:60,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('auth')->group(function () {
