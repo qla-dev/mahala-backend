@@ -98,6 +98,30 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('message', 'Uspješno si odjavljen.');
     }
 
+    public function test_authenticated_user_can_delete_account(): void
+    {
+        $user = User::factory()->create();
+        $user->settings()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withToken($token)
+            ->deleteJson('/api/auth/account')
+            ->assertOk()
+            ->assertJsonPath('message', 'Tvoj račun je trajno izbrisan.');
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('user_settings', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_type' => User::class,
+            'tokenable_id' => $user->id,
+        ]);
+    }
+
+    public function test_guest_cannot_delete_an_account(): void
+    {
+        $this->deleteJson('/api/auth/account')->assertUnauthorized();
+    }
+
     public function test_google_auth_registers_user_and_returns_token(): void
     {
         Config::set('services.google.client_ids', ['google-client-id']);

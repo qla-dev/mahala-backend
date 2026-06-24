@@ -265,6 +265,23 @@ class AuthController extends Controller
         ]);
     }
 
+    public function destroyAccount(Request $request)
+    {
+        $user = $request->user();
+
+        DB::transaction(function () use ($user) {
+            DB::table('password_reset_tokens')
+                ->where('email', $user->email)
+                ->delete();
+            $user->tokens()->delete();
+            $user->delete();
+        });
+
+        return response()->json([
+            'message' => 'Tvoj račun je trajno izbrisan.',
+        ]);
+    }
+
     public function updateProfile(Request $request)
     {
         $user = $request->user();
