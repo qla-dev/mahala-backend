@@ -56,6 +56,10 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'max:255'],
             'code' => ['required', 'digits:4'],
+            'terms_accepted' => ['required', 'accepted'],
+        ], [
+            'terms_accepted.accepted' => 'Moraš prihvatiti Uslove korištenja i Politiku privatnosti.',
+            'terms_accepted.required' => 'Moraš prihvatiti Uslove korištenja i Politiku privatnosti.',
         ]);
 
         $email = Str::lower($validated['email']);
@@ -135,6 +139,7 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'id_token' => ['required', 'string'],
+            'terms_accepted' => ['sometimes', 'boolean'],
         ]);
 
         $googleUser = $this->verifyGoogleIdToken($validated['id_token']);
@@ -152,6 +157,12 @@ class AuthController extends Controller
             ->orWhere('email', $email)
             ->first();
         $isNewUser = false;
+
+        if (!$user && !($validated['terms_accepted'] ?? false)) {
+            throw ValidationException::withMessages([
+                'terms_accepted' => ['Moraš prihvatiti Uslove korištenja i Politiku privatnosti.'],
+            ]);
+        }
 
         if ($user) {
             if ($user->google_id && $user->google_id !== $googleId) {
@@ -190,6 +201,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'identity_token' => ['required', 'string'],
             'full_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'terms_accepted' => ['sometimes', 'boolean'],
         ]);
 
         $appleUser = $this->verifyAppleIdentityToken($validated['identity_token']);
@@ -210,6 +222,12 @@ class AuthController extends Controller
 
         $user = $userQuery->first();
         $isNewUser = false;
+
+        if (!$user && !($validated['terms_accepted'] ?? false)) {
+            throw ValidationException::withMessages([
+                'terms_accepted' => ['Moraš prihvatiti Uslove korištenja i Politiku privatnosti.'],
+            ]);
+        }
 
         if ($user) {
             if ($user->apple_id && $user->apple_id !== $appleId) {

@@ -137,6 +137,7 @@ class AuthApiTest extends TestCase
 
         $this->postJson('/api/auth/google', [
             'id_token' => 'valid-google-id-token',
+            'terms_accepted' => true,
         ])
             ->assertOk()
             ->assertJsonStructure(['message', 'token', 'user'])
@@ -147,6 +148,28 @@ class AuthApiTest extends TestCase
             'email' => 'google@example.com',
             'google_id' => 'google-subject-123',
         ]);
+    }
+
+    public function test_google_auth_requires_terms_for_a_new_user(): void
+    {
+        Config::set('services.google.client_ids', ['google-client-id']);
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'aud' => 'google-client-id',
+                'sub' => 'google-subject-without-terms',
+                'email' => 'no-terms@example.com',
+                'email_verified' => true,
+                'name' => 'No Terms User',
+            ]),
+        ]);
+
+        $this->postJson('/api/auth/google', [
+            'id_token' => 'valid-google-id-token',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('terms_accepted');
+
+        $this->assertDatabaseMissing('users', ['email' => 'no-terms@example.com']);
     }
 
     public function test_google_auth_links_existing_email_user(): void
