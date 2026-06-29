@@ -93,7 +93,7 @@ class AuthApiTest extends TestCase
             'email' => 'missing@example.com',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.email.0', 'Ne postoji racun sa ovom email adresom.');
+            ->assertJsonPath('errors.email.0', 'Ne postoji račun sa ovom email adresom.');
     }
 
     public function test_forgotten_password_code_is_sent_for_existing_email(): void
@@ -145,7 +145,9 @@ class AuthApiTest extends TestCase
             'password_confirmation' => 'new-password123',
         ])
             ->assertOk()
-            ->assertJsonPath('message', 'Lozinka je uspjesno promijenjena.');
+            ->assertJsonStructure(['message', 'token', 'user' => ['id', 'name', 'username', 'email']])
+            ->assertJsonPath('message', 'Lozinka je uspjesno promijenjena.')
+            ->assertJsonPath('user.email', 'user@example.com');
 
         $user->refresh();
 

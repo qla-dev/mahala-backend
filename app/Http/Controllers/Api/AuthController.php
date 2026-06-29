@@ -46,19 +46,8 @@ class AuthController extends Controller
 
     public function sendPasswordResetCode(Request $request)
     {
-        if ($request->filled('email')) {
-            $request->merge([
-                'email' => Str::lower($request->input('email')),
-            ]);
-        }
-
-        $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
-        ], [
-            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
-        ]);
-
-        $email = Str::lower($validated['email']);
+        $user = $this->resolvePasswordResetUser($request);
+        $email = Str::lower($user->email);
         $code = (string) random_int(1000, 9999);
 
         DB::table('password_reset_tokens')->updateOrInsert(
@@ -78,20 +67,13 @@ class AuthController extends Controller
 
     public function verifyPasswordResetCode(Request $request)
     {
-        if ($request->filled('email')) {
-            $request->merge([
-                'email' => Str::lower($request->input('email')),
-            ]);
-        }
+        $user = $this->resolvePasswordResetUser($request);
 
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
             'code' => ['required', 'digits:4'],
-        ], [
-            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
         ]);
 
-        $email = Str::lower($validated['email']);
+        $email = Str::lower($user->email);
         $this->assertValidVerificationCode($email, $validated['code'], self::PASSWORD_RESET_CODE_TTL_MINUTES);
 
         return response()->json([
@@ -101,23 +83,15 @@ class AuthController extends Controller
 
     public function resetForgottenPassword(Request $request)
     {
-        if ($request->filled('email')) {
-            $request->merge([
-                'email' => Str::lower($request->input('email')),
-            ]);
-        }
+        $user = $this->resolvePasswordResetUser($request);
 
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
             'code' => ['required', 'digits:4'],
             'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
-        ], [
-            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
         ]);
 
-        $email = Str::lower($validated['email']);
+        $email = Str::lower($user->email);
         $this->assertValidVerificationCode($email, $validated['code'], self::PASSWORD_RESET_CODE_TTL_MINUTES);
-        $user = User::query()->where('email', $email)->firstOrFail();
 
         DB::transaction(function () use ($user, $email, $validated) {
             $user->forceFill([
@@ -130,6 +104,8 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Lozinka je uspjesno promijenjena.',
+            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => $this->formatUser($user->refresh()),
         ]);
     }
 
