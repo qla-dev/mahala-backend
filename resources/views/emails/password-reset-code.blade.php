@@ -99,12 +99,12 @@
         <div class="card">
             <div class="hero">
                 <p class="brand">MAHALA</p>
-                <h1>Promijeni lozinku za svoj MAHALA racun.</h1>
+                <h1>Promijeni lozinku za svoj MAHALA račun.</h1>
             </div>
             <div class="content">
-                <p>Unesi ovaj kod u aplikaciji da nastavis promjenu lozinke:</p>
+                <p>Unesi ovaj kod u aplikaciji da nastaviš promjenu lozinke:</p>
                 <div class="code">{{ $code }}</div>
-                <p>Kod vrijedi {{ $expiresInMinutes }} minuta. Ako nisi zatrazio promjenu lozinke, ovu poruku mozes ignorisati.</p>
+                <p>Kod vrijedi {{ $expiresInMinutes }} minuta. Ako nisi zatražio promjenu lozinke, ovu poruku možeš ignorisati.</p>
                 <p class="note">Zbog sigurnosti ne dijeli ovaj kod ni sa kim.</p>
             </div>
             <div class="footer">

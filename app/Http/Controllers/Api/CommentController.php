@@ -77,7 +77,7 @@ class CommentController extends Controller
             if ($parentId !== null) {
                 $parent = Comment::query()->findOrFail($parentId);
 
-                if ((string) $parent->post_id !== (string) $post || $parent->parent_id !== null) {
+                if ((string) $parent->post_id !== (string) $post) {
                     throw ValidationException::withMessages([
                         'parent_id' => ['Odabrani roditeljski komentar nije ispravan.'],
                     ]);

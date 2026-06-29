@@ -99,12 +99,12 @@
         <div class="card">
             <div class="hero">
                 <p class="brand">MAHALA</p>
-                <h1>Potvrdi svoj email i udji u mahalu.</h1>
+                <h1>Potvrdi svoj email i uđi u mahalu.</h1>
             </div>
             <div class="content">
-                <p>Unesi ovaj kod u aplikaciji da zavrsis registraciju:</p>
+                <p>Unesi ovaj kod u aplikaciji da završiš registraciju:</p>
                 <div class="code">{{ $code }}</div>
-                <p>Kod vrijedi {{ $expiresInMinutes }} minuta. Ako nisi pokrenuo registraciju, ovu poruku mozes ignorisati.</p>
+                <p>Kod vrijedi {{ $expiresInMinutes }} minuta. Ako nisi pokrenuo registraciju, ovu poruku možeš ignorisati.</p>
                 <p class="note">Zbog sigurnosti ne dijeli ovaj kod ni sa kim.</p>
             </div>
             <div class="footer">

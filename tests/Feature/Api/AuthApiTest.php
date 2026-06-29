@@ -167,7 +167,7 @@ class AuthApiTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonStructure(['message', 'token', 'user' => ['id', 'name', 'username', 'email']])
-            ->assertJsonPath('message', 'Lozinka je uspjesno promijenjena.')
+            ->assertJsonPath('message', 'Lozinka je uspješno promijenjena.')
             ->assertJsonPath('user.email', 'user@example.com');
 
         $user->refresh();

@@ -103,7 +103,7 @@ class AuthController extends Controller
         });
 
         return response()->json([
-            'message' => 'Lozinka je uspjesno promijenjena.',
+            'message' => 'Lozinka je uspješno promijenjena.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user->refresh()),
         ]);
@@ -133,7 +133,7 @@ class AuthController extends Controller
 
         if (!$verification) {
             throw ValidationException::withMessages([
-                'code' => ['Prvo zatrazi verifikacijski kod.'],
+                'code' => ['Prvo zatraži verifikacijski kod.'],
             ]);
         }
 
@@ -141,7 +141,7 @@ class AuthController extends Controller
             DB::table('password_reset_tokens')->where('email', $email)->delete();
 
             throw ValidationException::withMessages([
-                'code' => ['Verifikacijski kod je istekao. Zatrazi novi kod.'],
+                'code' => ['Verifikacijski kod je istekao. Zatraži novi kod.'],
             ]);
         }
 
@@ -166,7 +166,7 @@ class AuthController extends Controller
         DB::table('password_reset_tokens')->where('email', $email)->delete();
 
         return response()->json([
-            'message' => 'Registracija je uspjesna.',
+            'message' => 'Registracija je uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user),
             'is_new_user' => true,
@@ -233,7 +233,7 @@ class AuthController extends Controller
         if ($user) {
             if ($user->google_id && $user->google_id !== $googleId) {
                 throw ValidationException::withMessages([
-                    'id_token' => ['Ovaj email je veÄ‡ povezan sa drugim Google nalogom.'],
+                    'id_token' => ['Ovaj email je već povezan sa drugim Google nalogom.'],
                 ]);
             }
 
@@ -255,7 +255,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Google prijava je uspjeÅ¡na.',
+            'message' => 'Google prijava je uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user->refresh()),
             'is_new_user' => $isNewUser,
@@ -298,7 +298,7 @@ class AuthController extends Controller
         if ($user) {
             if ($user->apple_id && $user->apple_id !== $appleId) {
                 throw ValidationException::withMessages([
-                    'identity_token' => ['Ovaj email je veÄ‡ povezan sa drugim Apple nalogom.'],
+                    'identity_token' => ['Ovaj email je već povezan sa drugim Apple nalogom.'],
                 ]);
             }
 
@@ -326,7 +326,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Apple prijava je uspjeÅ¡na.',
+            'message' => 'Apple prijava je uspješna.',
             'token' => $user->createToken('auth_token')->plainTextToken,
             'user' => $this->formatUser($user->refresh()),
             'is_new_user' => $isNewUser,
@@ -395,7 +395,7 @@ class AuthController extends Controller
         $user->fill($validated)->save();
 
         return response()->json([
-            'message' => 'Profil je uspjesno azuriran.',
+            'message' => 'Profil je uspješno ažuriran.',
             'user' => $this->formatUser($user->refresh()),
         ]);
     }
@@ -420,7 +420,7 @@ class AuthController extends Controller
         ])->save();
 
         return response()->json([
-            'message' => 'Lozinka je uspjesno promijenjena.',
+            'message' => 'Lozinka je uspješno promijenjena.',
         ]);
     }
 
@@ -430,7 +430,7 @@ class AuthController extends Controller
 
         if (!$verification) {
             throw ValidationException::withMessages([
-                'code' => ['Prvo zatrazi verifikacijski kod.'],
+                'code' => ['Prvo zatraži verifikacijski kod.'],
             ]);
         }
 
@@ -438,7 +438,7 @@ class AuthController extends Controller
             DB::table('password_reset_tokens')->where('email', $email)->delete();
 
             throw ValidationException::withMessages([
-                'code' => ['Verifikacijski kod je istekao. Zatrazi novi kod.'],
+                'code' => ['Verifikacijski kod je istekao. Zatraži novi kod.'],
             ]);
         }
 
@@ -617,7 +617,7 @@ class AuthController extends Controller
 
         if (!$keysResponse->ok()) {
             throw ValidationException::withMessages([
-                'identity_token' => ['Apple kljuÄevi nisu dostupni.'],
+                'identity_token' => ['Apple ključevi nisu dostupni.'],
             ]);
         }
 

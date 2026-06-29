@@ -289,11 +289,17 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('data.parent_id', $response->json('data.id'))
             ->assertJsonPath('data.content', 'Komentar na komentar');
 
-        $this->postJson("/api/posts/{$post->id}/comments", [
+        $nestedChildResponse = $this->postJson("/api/posts/{$post->id}/comments", [
             'author_user_id' => $user->id,
             'parent_id' => $childResponse->json('data.id'),
-            'content' => 'Predubok komentar',
-        ])->assertUnprocessable();
+            'content' => 'Odgovor na odgovor',
+            'is_anonymous' => true,
+        ]);
+
+        $nestedChildResponse
+            ->assertCreated()
+            ->assertJsonPath('data.parent_id', $childResponse->json('data.id'))
+            ->assertJsonPath('data.content', 'Odgovor na odgovor');
     }
 
     public function test_authenticated_user_can_vote_on_a_post(): void
