@@ -5,8 +5,10 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthApiTest extends TestCase
@@ -15,10 +17,18 @@ class AuthApiTest extends TestCase
 
     public function test_it_registers_user_and_returns_token(): void
     {
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'mahalac@example.com',
+            'token' => Hash::make('1234'),
+            'created_at' => now(),
+        ]);
+
         $response = $this->postJson('/api/auth/register', [
             'username' => 'mahalac',
             'email' => 'mahalac@example.com',
             'password' => 'password123',
+            'code' => '1234',
+            'terms_accepted' => true,
         ]);
 
         $response
@@ -75,6 +85,96 @@ class AuthApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('errors.email.0', 'Email, korisničko ime ili lozinka nisu ispravni.')
             ->assertJsonPath('errors.password.0', 'Email, korisničko ime ili lozinka nisu ispravni.');
+    }
+
+    public function test_forgotten_password_code_requires_existing_email(): void
+    {
+        $this->postJson('/api/auth/forgot-password/code', [
+            'email' => 'missing@example.com',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'Ne postoji racun sa ovom email adresom.');
+    }
+
+    public function test_forgotten_password_code_is_sent_for_existing_email(): void
+    {
+        Mail::fake();
+        User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->postJson('/api/auth/forgot-password/code', [
+            'email' => 'user@example.com',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Kod za promjenu lozinke je poslan.');
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => 'user@example.com',
+        ]);
+    }
+
+    public function test_forgotten_password_can_verify_code_and_reset_password(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'user@example.com',
+            'token' => Hash::make('4321'),
+            'created_at' => now(),
+        ]);
+
+        $this->postJson('/api/auth/forgot-password/verify', [
+            'email' => 'user@example.com',
+            'code' => '4321',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Kod je ispravan.');
+
+        $this->postJson('/api/auth/forgot-password/reset', [
+            'email' => 'user@example.com',
+            'code' => '4321',
+            'password' => 'new-password123',
+            'password_confirmation' => 'new-password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Lozinka je uspjesno promijenjena.');
+
+        $user->refresh();
+
+        $this->assertTrue(Hash::check('new-password123', $user->password));
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => 'user@example.com',
+        ]);
+    }
+
+    public function test_forgotten_password_rejects_invalid_code(): void
+    {
+        User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'user@example.com',
+            'token' => Hash::make('4321'),
+            'created_at' => now(),
+        ]);
+
+        $this->postJson('/api/auth/forgot-password/verify', [
+            'email' => 'user@example.com',
+            'code' => '1111',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code.0', 'Verifikacijski kod nije ispravan.');
     }
 
     public function test_authenticated_user_can_fetch_profile_and_logout(): void

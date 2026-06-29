@@ -18,6 +18,7 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     private const REGISTRATION_CODE_TTL_MINUTES = 10;
+    private const PASSWORD_RESET_CODE_TTL_MINUTES = 10;
 
     public function sendRegistrationCode(Request $request)
     {
@@ -40,6 +41,95 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Verifikacijski kod je poslan.',
+        ]);
+    }
+
+    public function sendPasswordResetCode(Request $request)
+    {
+        if ($request->filled('email')) {
+            $request->merge([
+                'email' => Str::lower($request->input('email')),
+            ]);
+        }
+
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
+        ], [
+            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
+        ]);
+
+        $email = Str::lower($validated['email']);
+        $code = (string) random_int(1000, 9999);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $email],
+            [
+                'token' => Hash::make($code),
+                'created_at' => now(),
+            ],
+        );
+
+        $this->sendPasswordResetVerificationEmail($email, $code);
+
+        return response()->json([
+            'message' => 'Kod za promjenu lozinke je poslan.',
+        ]);
+    }
+
+    public function verifyPasswordResetCode(Request $request)
+    {
+        if ($request->filled('email')) {
+            $request->merge([
+                'email' => Str::lower($request->input('email')),
+            ]);
+        }
+
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
+            'code' => ['required', 'digits:4'],
+        ], [
+            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
+        ]);
+
+        $email = Str::lower($validated['email']);
+        $this->assertValidVerificationCode($email, $validated['code'], self::PASSWORD_RESET_CODE_TTL_MINUTES);
+
+        return response()->json([
+            'message' => 'Kod je ispravan.',
+        ]);
+    }
+
+    public function resetForgottenPassword(Request $request)
+    {
+        if ($request->filled('email')) {
+            $request->merge([
+                'email' => Str::lower($request->input('email')),
+            ]);
+        }
+
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255', 'exists:users,email'],
+            'code' => ['required', 'digits:4'],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+        ], [
+            'email.exists' => 'Ne postoji racun sa ovom email adresom.',
+        ]);
+
+        $email = Str::lower($validated['email']);
+        $this->assertValidVerificationCode($email, $validated['code'], self::PASSWORD_RESET_CODE_TTL_MINUTES);
+        $user = User::query()->where('email', $email)->firstOrFail();
+
+        DB::transaction(function () use ($user, $email, $validated) {
+            $user->forceFill([
+                'password' => $validated['password'],
+            ])->save();
+
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+            $user->tokens()->delete();
+        });
+
+        return response()->json([
+            'message' => 'Lozinka je uspjesno promijenjena.',
         ]);
     }
 
@@ -358,6 +448,31 @@ class AuthController extends Controller
         ]);
     }
 
+    private function assertValidVerificationCode(string $email, string $code, int $ttlMinutes): void
+    {
+        $verification = DB::table('password_reset_tokens')->where('email', $email)->first();
+
+        if (!$verification) {
+            throw ValidationException::withMessages([
+                'code' => ['Prvo zatrazi verifikacijski kod.'],
+            ]);
+        }
+
+        if (Carbon::parse($verification->created_at)->addMinutes($ttlMinutes)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+            throw ValidationException::withMessages([
+                'code' => ['Verifikacijski kod je istekao. Zatrazi novi kod.'],
+            ]);
+        }
+
+        if (!Hash::check($code, $verification->token)) {
+            throw ValidationException::withMessages([
+                'code' => ['Verifikacijski kod nije ispravan.'],
+            ]);
+        }
+    }
+
     private function formatUser(User $user): array
     {
         $settings = $user->settings()->firstOrCreate([], [
@@ -660,6 +775,23 @@ class AuthController extends Controller
                     config('mail.verification_from.name'),
                 )
                 ->subject('MAHALA verifikacijski kod');
+        });
+    }
+
+    private function sendPasswordResetVerificationEmail(string $email, string $code): void
+    {
+        $html = view('emails.password-reset-code', [
+            'code' => $code,
+            'expiresInMinutes' => self::PASSWORD_RESET_CODE_TTL_MINUTES,
+        ])->render();
+
+        Mail::mailer('verification')->html($html, function ($message) use ($email) {
+            $message->to($email)
+                ->from(
+                    config('mail.verification_from.address'),
+                    config('mail.verification_from.name'),
+                )
+                ->subject('MAHALA kod za promjenu lozinke');
         });
     }
 }

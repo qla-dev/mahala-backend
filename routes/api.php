@@ -20,6 +20,9 @@ Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('register-user', [AuthController::class, 'register']);
     Route::post('register/code', [AuthController::class, 'sendRegistrationCode']);
+    Route::post('forgot-password/code', [AuthController::class, 'sendPasswordResetCode']);
+    Route::post('forgot-password/verify', [AuthController::class, 'verifyPasswordResetCode']);
+    Route::post('forgot-password/reset', [AuthController::class, 'resetForgottenPassword']);
     Route::post('login', [AuthController::class, 'login']);
     Route::post('google', [AuthController::class, 'google']);
     Route::post('apple', [AuthController::class, 'apple']);
