@@ -389,7 +389,7 @@ class TopicController extends Controller
             Log::warning('[MAHALA][topic-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
 
             throw ValidationException::withMessages([
-                'name' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
+                'name' => ['AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.'],
             ]);
         }
 
@@ -472,7 +472,7 @@ class TopicController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'name' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
+                'name' => ['AI provjera nije uspjela. Pokušaj ponovo kasnije.'],
             ]);
         }
 
@@ -486,7 +486,7 @@ class TopicController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'name' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
+                'name' => ['AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.'],
             ]);
         }
 

@@ -231,6 +231,7 @@ class TopicPostApiTest extends TestCase
     {
         $user = User::factory()->create();
         $mahala = $this->createMahala();
+        Sanctum::actingAs($user);
         $post = \App\Models\Post::query()->create([
             'topic_id' => 'glavna',
             'author_user_id' => $user->id,

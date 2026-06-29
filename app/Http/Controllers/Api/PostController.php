@@ -437,7 +437,7 @@ class PostController extends Controller
             Log::warning('[MAHALA][post-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
 
             throw ValidationException::withMessages([
-                'content' => ['AI provjera trenutno nije dostupna. Pokusaj ponovo kasnije.'],
+                'content' => ['AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.'],
             ]);
         }
 
@@ -544,7 +544,7 @@ class PostController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'content' => ['AI provjera nije uspjela. Pokusaj ponovo kasnije.'],
+                'content' => ['AI provjera nije uspjela. Pokušaj ponovo kasnije.'],
             ]);
         }
 
@@ -559,7 +559,7 @@ class PostController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'content' => ['AI provjera nije vratila validan rezultat. Pokusaj ponovo kasnije.'],
+                'content' => ['AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.'],
             ]);
         }
 
