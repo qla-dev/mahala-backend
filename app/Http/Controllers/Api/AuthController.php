@@ -449,6 +449,42 @@ class AuthController extends Controller
         }
     }
 
+    private function resolvePasswordResetUser(Request $request): User
+    {
+        if (!$request->filled('identifier') && $request->filled('email')) {
+            $request->merge([
+                'identifier' => $request->input('email'),
+            ]);
+        }
+
+        if ($request->filled('identifier')) {
+            $request->merge([
+                'identifier' => Str::lower(trim((string) $request->input('identifier'))),
+            ]);
+        }
+
+        $validated = $request->validate([
+            'identifier' => ['required', 'string', 'max:255'],
+        ], [
+            'identifier.required' => 'Email ili korisničko ime je obavezno.',
+        ]);
+
+        $identifier = $validated['identifier'];
+        $user = User::query()
+            ->whereRaw('LOWER(email) = ?', [$identifier])
+            ->orWhere('username', $identifier)
+            ->first();
+
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'identifier' => ['Ne postoji račun sa ovim emailom ili korisničkim imenom.'],
+                'email' => ['Ne postoji račun sa ovim emailom ili korisničkim imenom.'],
+            ]);
+        }
+
+        return $user;
+    }
+
     private function formatUser(User $user): array
     {
         $settings = $user->settings()->firstOrCreate([], [

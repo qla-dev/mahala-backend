@@ -90,10 +90,10 @@ class AuthApiTest extends TestCase
     public function test_forgotten_password_code_requires_existing_email(): void
     {
         $this->postJson('/api/auth/forgot-password/code', [
-            'email' => 'missing@example.com',
+            'identifier' => 'missing_user',
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.email.0', 'Ne postoji račun sa ovom email adresom.');
+            ->assertJsonPath('errors.identifier.0', 'Ne postoji račun sa ovim emailom ili korisničkim imenom.');
     }
 
     public function test_forgotten_password_code_is_sent_for_existing_email(): void
@@ -108,6 +108,27 @@ class AuthApiTest extends TestCase
 
         $this->postJson('/api/auth/forgot-password/code', [
             'email' => 'user@example.com',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Kod za promjenu lozinke je poslan.');
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => 'user@example.com',
+        ]);
+    }
+
+    public function test_forgotten_password_code_is_sent_for_existing_username(): void
+    {
+        Mail::fake();
+        User::query()->create([
+            'name' => 'Mahala User',
+            'username' => 'mahala_user',
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->postJson('/api/auth/forgot-password/code', [
+            'identifier' => 'mahala_user',
         ])
             ->assertOk()
             ->assertJsonPath('message', 'Kod za promjenu lozinke je poslan.');
@@ -132,14 +153,14 @@ class AuthApiTest extends TestCase
         ]);
 
         $this->postJson('/api/auth/forgot-password/verify', [
-            'email' => 'user@example.com',
+            'identifier' => 'mahala_user',
             'code' => '4321',
         ])
             ->assertOk()
             ->assertJsonPath('message', 'Kod je ispravan.');
 
         $this->postJson('/api/auth/forgot-password/reset', [
-            'email' => 'user@example.com',
+            'identifier' => 'mahala_user',
             'code' => '4321',
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
