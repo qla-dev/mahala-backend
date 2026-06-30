@@ -10,6 +10,7 @@ use App\Models\Topic;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -121,6 +122,16 @@ class StartupController extends Controller
                 ->getCollection()
                 ->map(fn (Post $post) => $this->formatPost($post, $userId, $blockedUserIds));
 
+            $this->logFeedSortResult(
+                'startup',
+                $sort,
+                $paginatedPosts->currentPage(),
+                $paginatedPosts->perPage(),
+                $mahalaIds,
+                $scopeIds,
+                $paginatedPosts->getCollection(),
+            );
+
             return response()->json([
                 'data' => [
                     'topics' => $topics,
@@ -230,6 +241,34 @@ class StartupController extends Controller
         return $query
             ->orderByDesc('created_at')
             ->orderByDesc('id');
+    }
+
+    private function logFeedSortResult(
+        string $surface,
+        string $sort,
+        int $page,
+        int $limit,
+        array $requestedMahalaIds,
+        array $scopeIds,
+        $posts,
+    ): void {
+        Log::info('[MAHALA_FEED_SORT] '.$surface, [
+            'sort' => $sort,
+            'page' => $page,
+            'limit' => $limit,
+            'requested_mahala_ids' => $requestedMahalaIds,
+            'scope_ids' => $scopeIds,
+            'rows' => $posts->values()->map(fn (Post $post, int $index) => [
+                'index' => $index,
+                'id' => $post->id,
+                'recent_upvotes_count' => (int) ($post->recent_upvotes_count ?? 0),
+                'recent_comments_count' => (int) ($post->recent_comments_count ?? 0),
+                'active_comments_count' => (int) ($post->active_comments_count ?? 0),
+                'upvotes_count' => (int) ($post->upvotes_count ?? 0),
+                'downvotes_count' => (int) ($post->downvotes_count ?? 0),
+                'created_at' => optional($post->created_at)->toDateTimeString(),
+            ])->all(),
+        ]);
     }
 
     private function formatTopic(Topic $topic): array
