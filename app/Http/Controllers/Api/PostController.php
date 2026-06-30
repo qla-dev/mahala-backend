@@ -26,6 +26,8 @@ class PostController extends Controller
 {
     private array $authorRahatlukPointsCache = [];
 
+    private const FEED_ENGAGEMENT_WINDOW_DAYS = 30;
+
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -66,7 +68,7 @@ class PostController extends Controller
                 ], 200);
             }
 
-            $engagementWindowStart = Carbon::now()->subDays(10);
+            $engagementWindowStart = Carbon::now()->subDays(self::FEED_ENGAGEMENT_WINDOW_DAYS);
 
             $postsQuery = Post::query()
                 ->with(['comments' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author')->with('authorUser')->withVoteCounts()->latest()])
@@ -908,6 +910,7 @@ PROMPT;
         if ($sort === 'popular') {
             return $query
                 ->orderByDesc('recent_upvotes_count')
+                ->orderByDesc('upvotes_count')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id');
         }

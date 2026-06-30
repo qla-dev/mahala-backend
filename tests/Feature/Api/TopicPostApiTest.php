@@ -1060,7 +1060,7 @@ class TopicPostApiTest extends TestCase
             ->assertJsonPath('meta.has_more', false);
     }
 
-    public function test_it_sorts_feed_posts_by_recent_engagement(): void
+    public function test_it_sorts_feed_posts_by_thirty_day_upvotes(): void
     {
         $mahala = $this->createMahala();
         $users = User::factory()->count(6)->create();
@@ -1126,10 +1126,66 @@ class TopicPostApiTest extends TestCase
 
         $this->getJson("/api/feed?mahala_ids={$mahala->id}&sort=popular")
             ->assertOk()
-            ->assertJsonPath('data.0.id', $popularPost->id);
+            ->assertJsonPath('data.0.id', $oldPopularPost->id);
     }
 
-    public function test_it_sorts_feed_posts_by_recent_comment_count(): void
+    public function test_popular_feed_breaks_recent_upvote_ties_by_total_upvotes(): void
+    {
+        $mahala = $this->createMahala();
+        $users = User::factory()->count(5)->create();
+
+        $newerPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Newer one upvote post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $higherTotalPost = \App\Models\Post::query()->create([
+            'topic_id' => 'glavna',
+            'mahala_id' => $mahala->id,
+            'content' => 'Higher total upvote post',
+            'is_anonymous' => true,
+            'status' => 1,
+            'hidden' => false,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        \App\Models\PostVote::query()->forceCreate([
+            'post_id' => $newerPost->id,
+            'user_id' => $users[0]->id,
+            'value' => 1,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        \App\Models\PostVote::query()->forceCreate([
+            'post_id' => $higherTotalPost->id,
+            'user_id' => $users[1]->id,
+            'value' => 1,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        foreach ($users->slice(2) as $user) {
+            \App\Models\PostVote::query()->forceCreate([
+                'post_id' => $higherTotalPost->id,
+                'user_id' => $user->id,
+                'value' => 1,
+                'created_at' => now()->subDays(31),
+                'updated_at' => now()->subDays(31),
+            ]);
+        }
+
+        $this->getJson("/api/feed?mahala_ids={$mahala->id}&sort=popular")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $higherTotalPost->id);
+    }
+
+    public function test_it_sorts_feed_posts_by_thirty_day_comment_count(): void
     {
         $mahala = $this->createMahala();
 
@@ -1197,7 +1253,7 @@ class TopicPostApiTest extends TestCase
 
         $this->getJson("/api/feed?mahala_ids={$mahala->id}&sort=commented")
             ->assertOk()
-            ->assertJsonPath('data.0.id', $mostCommentedPost->id);
+            ->assertJsonPath('data.0.id', $oldCommentedPost->id);
     }
 
     public function test_feed_returns_comments_newest_first(): void

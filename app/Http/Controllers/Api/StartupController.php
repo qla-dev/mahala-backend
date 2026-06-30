@@ -19,6 +19,8 @@ class StartupController extends Controller
 {
     private array $authorRahatlukPointsCache = [];
 
+    private const FEED_ENGAGEMENT_WINDOW_DAYS = 30;
+
     private const SARAJEVO_TOPIC_SCOPE_ID = 'sarajevo-71000';
 
     private const SARAJEVO_POLYGON_IDS = [
@@ -80,7 +82,7 @@ class StartupController extends Controller
 
             $userId = $request->user('sanctum')?->id;
             $blockedUserIds = $this->blockedUserIds($userId);
-            $engagementWindowStart = Carbon::now()->subDays(10);
+            $engagementWindowStart = Carbon::now()->subDays(self::FEED_ENGAGEMENT_WINDOW_DAYS);
 
             $topicsQuery = Topic::query()
                 ->whereIn('mahala_id', $scopeIds)
@@ -227,6 +229,7 @@ class StartupController extends Controller
         if ($sort === 'popular') {
             return $query
                 ->orderByDesc('recent_upvotes_count')
+                ->orderByDesc('upvotes_count')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id');
         }
