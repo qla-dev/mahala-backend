@@ -111,16 +111,8 @@ class StartupController extends Controller
                 ->where('status', 1)
                 ->where(function ($query) {
                     $query->whereNull('hidden')->orWhere('hidden', false);
-                })
-                ->when(
-                    $sort === 'popular',
-                    fn ($query) => $query->orderByDesc('recent_upvotes_count')->latest(),
-                    fn ($query) => $query->when(
-                        $sort === 'commented',
-                        fn ($query) => $query->orderByDesc('recent_comments_count')->latest(),
-                        fn ($query) => $query->latest(),
-                    ),
-                );
+                });
+            $this->applyFeedSort($postsQuery, $sort);
             $this->applyAuthorBlockFilter($postsQuery, $blockedUserIds, 'author_user_id');
 
             $paginatedPosts = $postsQuery->paginate($limit, ['*'], 'page', 1);
@@ -217,6 +209,27 @@ class StartupController extends Controller
             'last_page' => $lastPage,
             'has_more' => $page < $lastPage,
         ];
+    }
+
+    private function applyFeedSort($query, string $sort)
+    {
+        if ($sort === 'popular') {
+            return $query
+                ->orderByDesc('recent_upvotes_count')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id');
+        }
+
+        if ($sort === 'commented') {
+            return $query
+                ->orderByDesc('recent_comments_count')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id');
+        }
+
+        return $query
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     private function formatTopic(Topic $topic): array
