@@ -319,6 +319,8 @@ class StartupController extends Controller
             'upvotes' => $upvotes,
             'downvotes' => $downvotes,
             'score' => $upvotes - $downvotes,
+            'recent_upvotes_count' => (int) ($post->recent_upvotes_count ?? 0),
+            'recent_comments_count' => (int) ($post->recent_comments_count ?? 0),
             'views_count' => (int) ($post->views_count ?? $post->views()->count()),
             'my_vote' => $userId
                 ? (int) ($post->votes()->where('user_id', $userId)->value('value') ?? 0)
