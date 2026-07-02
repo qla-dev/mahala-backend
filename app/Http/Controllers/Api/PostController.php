@@ -181,20 +181,27 @@ class PostController extends Controller
 
             $attributes['image_uri'] = $this->storeUploadedImage($request);
 
+            $draftReason = null;
+
             try {
                 $this->postAiCheck($attributes, $attributes['image_uri']);
-            } catch (Exception $e) {
-                $this->deleteStoredImage($attributes['image_uri']);
+            } catch (ValidationException $e) {
                 throw $e;
+            } catch (Exception $e) {
+                $attributes['status'] = 0;
+                $draftReason = $e->getMessage();
             }
 
             $post = Post::query()->create($attributes);
 
             return response()->json([
-                'message' => 'Objava je uspjesno kreirana.',
+                'message' => $draftReason
+                    ? 'Objava je sacuvana kao draft.'
+                    : 'Objava je uspjesno kreirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
                 'meta' => [
                     'location_inside_mahala' => $isInsideMahala,
+                    'draft_reason' => $draftReason,
                 ],
             ], 201);
         } catch (ValidationException $e) {
@@ -440,9 +447,7 @@ class PostController extends Controller
         if ($apiKey === '') {
             Log::warning('[MAHALA][post-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.');
         }
 
         $hasImage = $imageUri !== null;
@@ -547,9 +552,7 @@ class PostController extends Controller
                 'body' => Str::limit($response->body(), 2000),
             ]);
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera nije uspjela. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera nije uspjela. Pokušaj ponovo kasnije.');
         }
 
         $moderationText = $this->extractModerationText($response->json() ?: []);
@@ -562,9 +565,7 @@ class PostController extends Controller
                 'content' => Str::limit($moderationText, 2000),
             ]);
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.');
         }
 
         if (!$payload['allowed']) {

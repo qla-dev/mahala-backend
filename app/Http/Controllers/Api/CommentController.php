@@ -84,12 +84,21 @@ class CommentController extends Controller
                 }
             }
 
-            $this->commentAiCheck($validated['content'], [
-                'post_id' => $post,
-                'parent_id' => $parentId,
-                'mahala_id' => $postModel->mahala_id,
-                'topic_id' => $postModel->topic_id,
-            ]);
+            $draftReason = null;
+
+            try {
+                $this->commentAiCheck($validated['content'], [
+                    'post_id' => $post,
+                    'parent_id' => $parentId,
+                    'mahala_id' => $postModel->mahala_id,
+                    'topic_id' => $postModel->topic_id,
+                ]);
+            } catch (ValidationException $e) {
+                throw $e;
+            } catch (Exception $e) {
+                $validated['status'] = 0;
+                $draftReason = $e->getMessage();
+            }
 
             $comment = Comment::query()->create([
                 'post_id' => $post,
@@ -106,8 +115,13 @@ class CommentController extends Controller
             }
 
             return response()->json([
-                'message' => 'Komentar je uspjesno kreiran.',
+                'message' => $draftReason
+                    ? 'Komentar je sacuvan kao draft.'
+                    : 'Komentar je uspjesno kreiran.',
                 'data' => $this->formatComment($comment, $request->user('sanctum')?->id),
+                'meta' => [
+                    'draft_reason' => $draftReason,
+                ],
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
@@ -216,9 +230,7 @@ class CommentController extends Controller
         if ($apiKey === '') {
             Log::warning('[MAHALA][comment-ai] moderation unavailable because OPENROUTER_API_KEY is missing');
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera trenutno nije dostupna. Pokušaj ponovo kasnije.');
         }
 
         $model = trim((string) config('services.post_ai_moderation.text_model', 'google/gemini-2.5-flash'));
@@ -297,9 +309,7 @@ class CommentController extends Controller
                 'body' => Str::limit($response->body(), 2000),
             ]);
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera nije uspjela. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera nije uspjela. Pokušaj ponovo kasnije.');
         }
 
         $moderationText = $this->extractModerationText($response->json() ?: []);
@@ -311,9 +321,7 @@ class CommentController extends Controller
                 'content' => Str::limit($moderationText, 2000),
             ]);
 
-            throw ValidationException::withMessages([
-                'content' => ['AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.'],
-            ]);
+            throw new \RuntimeException('AI provjera nije vratila validan rezultat. Pokušaj ponovo kasnije.');
         }
 
         if (!$payload['allowed']) {

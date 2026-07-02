@@ -55,19 +55,23 @@ class ProfileDataController extends Controller
         int $limit,
     ) {
         $isOwnProfile = $viewerId && (int) $viewerId === (int) $targetUserId;
+        $draftCommentAuthorId = $isOwnProfile ? $targetUserId : null;
         $postsQuery = Post::query()
             ->with([
-                'comments' => fn ($query) => $this->applyAuthorBlockFilter(
-                    $query->where('status', 1),
-                    $blockedUserIds,
-                    'author',
-                )->with('authorUser')->withVoteCounts()->latest(),
+                'comments' => fn ($query) => $this->applyProfileCommentOrdering(
+                    $this->applyAuthorBlockFilter(
+                        $this->applyVisibleCommentStatus($query, $draftCommentAuthorId),
+                        $blockedUserIds,
+                        'author',
+                    )->with('authorUser')->withVoteCounts(),
+                    $draftCommentAuthorId,
+                ),
             ])
             ->withVoteCounts()
             ->withCount([
                 'views as views_count',
                 'comments as active_comments_count' => fn ($query) => $this->applyAuthorBlockFilter(
-                    $query->where('status', 1),
+                    $this->applyVisibleCommentStatus($query, $draftCommentAuthorId),
                     $blockedUserIds,
                     'author',
                 ),
@@ -91,9 +95,10 @@ class ProfileDataController extends Controller
         if ($type === 'posts') {
             $postsQuery->where('author_user_id', $targetUserId);
         } elseif ($type === 'comments') {
-            $postsQuery->whereHas('comments', fn ($query) => $query
-                ->where('author', $targetUserId)
-                ->where('status', 1));
+            $postsQuery->whereHas('comments', fn ($query) => $this->applyVisibleCommentStatus(
+                $query->where('author', $targetUserId),
+                $draftCommentAuthorId,
+            ));
         } elseif ($type === 'votes') {
             $postsQuery->whereHas('votes', fn ($query) => $query
                 ->where('user_id', $targetUserId)
@@ -101,10 +106,11 @@ class ProfileDataController extends Controller
         }
 
         $this->applyAuthorBlockFilter($postsQuery, $blockedUserIds, 'author_user_id');
+        $this->applyProfileDraftOrdering($postsQuery, $type, $targetUserId, $isOwnProfile);
         $paginatedPosts = $postsQuery->latest()->paginate($limit, ['*'], 'page', $page);
         $posts = $paginatedPosts
             ->getCollection()
-            ->map(fn (Post $post) => $this->formatPost($post, $viewerId, $blockedUserIds));
+            ->map(fn (Post $post) => $this->formatPost($post, $viewerId, $blockedUserIds, $draftCommentAuthorId));
 
         return response()->json([
             'data' => $posts,
@@ -132,6 +138,7 @@ class ProfileDataController extends Controller
         }
 
         $this->applyAuthorBlockFilter($topicsQuery, $blockedUserIds, 'created_by_user_id');
+        $this->applyDraftStatusOrdering($topicsQuery, 'topics.status', $isOwnProfile);
         $paginatedTopics = $topicsQuery->latest()->paginate($limit, ['*'], 'page', $page);
         $topics = $paginatedTopics
             ->getCollection()
@@ -173,19 +180,27 @@ class ProfileDataController extends Controller
         ];
     }
 
-    private function formatPost(Post $post, ?int $userId = null, array $blockedUserIds = []): array
+    private function formatPost(
+        Post $post,
+        ?int $userId = null,
+        array $blockedUserIds = [],
+        ?int $draftCommentAuthorId = null,
+    ): array
     {
         $post->loadMissing([
             'author',
-            'comments' => fn ($query) => $this->applyAuthorBlockFilter(
-                $query->where('status', 1),
-                $blockedUserIds,
-                'author',
-            )->with('authorUser')->withVoteCounts()->latest(),
+            'comments' => fn ($query) => $this->applyProfileCommentOrdering(
+                $this->applyAuthorBlockFilter(
+                    $this->applyVisibleCommentStatus($query, $draftCommentAuthorId),
+                    $blockedUserIds,
+                    'author',
+                )->with('authorUser')->withVoteCounts(),
+                $draftCommentAuthorId,
+            ),
         ]);
 
         $comments = $post->comments
-            ->where('status', 1)
+            ->filter(fn (Comment $comment) => $this->isVisibleComment($comment, $draftCommentAuthorId))
             ->reject(fn (Comment $comment) => $this->isBlockedAuthor($comment->author, $blockedUserIds))
             ->values()
             ->map(fn (Comment $comment) => $this->formatComment($comment, $userId));
@@ -291,9 +306,76 @@ class ProfileDataController extends Controller
         });
     }
 
+    private function applyProfileDraftOrdering($query, string $type, int $targetUserId, bool $isOwnProfile): void
+    {
+        if (!$isOwnProfile) {
+            return;
+        }
+
+        if ($type === 'comments') {
+            $query->orderByRaw(
+                'CASE WHEN EXISTS (
+                    SELECT 1 FROM comments profile_draft_comments
+                    WHERE profile_draft_comments.post_id = posts.id
+                        AND profile_draft_comments.author = ?
+                        AND profile_draft_comments.status = 0
+                ) THEN 0 ELSE 1 END',
+                [$targetUserId],
+            );
+        }
+
+        $this->applyDraftStatusOrdering($query, 'posts.status', true);
+    }
+
+    private function applyDraftStatusOrdering($query, string $column, bool $isOwnProfile): void
+    {
+        if (!$isOwnProfile) {
+            return;
+        }
+
+        $query->orderByRaw("CASE WHEN {$column} = 0 THEN 0 ELSE 1 END");
+    }
+
+    private function applyProfileCommentOrdering($query, ?int $draftCommentAuthorId)
+    {
+        if ($draftCommentAuthorId !== null) {
+            $query->orderByRaw(
+                'CASE WHEN comments.status = 0 AND comments.author = ? THEN 0 ELSE 1 END',
+                [$draftCommentAuthorId],
+            );
+        }
+
+        return $query->latest();
+    }
+
     private function isBlockedAuthor($authorId, array $blockedUserIds): bool
     {
         return $authorId !== null && in_array((int) $authorId, $blockedUserIds, true);
+    }
+
+    private function applyVisibleCommentStatus($query, ?int $draftCommentAuthorId)
+    {
+        return $query->where(function ($query) use ($draftCommentAuthorId) {
+            $query->where('status', 1);
+
+            if ($draftCommentAuthorId !== null) {
+                $query->orWhere(function ($query) use ($draftCommentAuthorId) {
+                    $query->where('status', 0)
+                        ->where('author', $draftCommentAuthorId);
+                });
+            }
+        });
+    }
+
+    private function isVisibleComment(Comment $comment, ?int $draftCommentAuthorId): bool
+    {
+        if ((int) $comment->status === 1) {
+            return true;
+        }
+
+        return $draftCommentAuthorId !== null
+            && (int) $comment->status === 0
+            && (int) $comment->author === (int) $draftCommentAuthorId;
     }
 
     private function resolveMahalaColor($mahalaId): string
