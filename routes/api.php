@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ClientLogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\LocationDebugReportController;
 use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\ProfileDataController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\RevenueCatController;
 use App\Http\Controllers\Api\StartupController;
@@ -30,6 +31,7 @@ Route::prefix('auth')->group(function () {
 
 Route::get('startup', StartupController::class);
 Route::get('feed', [PostController::class, 'feed']);
+Route::get('profile-data/{type}/{user}', ProfileDataController::class);
 Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas']);
 Route::apiResource('mahalas', MahalaController::class)->only(['index', 'show']);
 Route::apiResource('topics', TopicController::class)->only(['index', 'show']);
