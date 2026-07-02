@@ -231,8 +231,8 @@ class ProfileDataController extends Controller
             'author_user_id' => $comment->author,
             'author_username' => $comment->authorUser?->username,
             'author_display_name' => $comment->is_anonymous
-                ? 'komšija'
-                : $comment->authorUser?->username ?? 'komšija',
+                ? 'komsija'
+                : $comment->authorUser?->username ?? 'komsija',
             'author_rahatluk_points' => $this->authorRahatlukPoints($comment->author),
             'content' => $comment->content,
             'is_anonymous' => $comment->is_anonymous,
