@@ -25,10 +25,30 @@ class MahalaController extends Controller
     public function index(Request $request)
     {
         try {
+            $mahalas = Mahala::query()
+                ->where('status', 'published')
+                ->latest()
+                ->get()
+                ->map(fn (Mahala $mahala) => $this->formatMahala($mahala));
+
+            return response()->json([
+                'data' => $mahalas,
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Doslo je do greske pri ucitavanju mahala.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function geoeditorIndex(Request $request)
+    {
+        try {
             $payload = $request->validate([
                 'status' => ['sometimes', 'string', Rule::in(['draft', 'published', 'archived', 'all'])],
             ]);
-            $status = $payload['status'] ?? 'published';
+            $status = $payload['status'] ?? 'all';
 
             $mahalas = Mahala::query()
                 ->when($status !== 'all', fn ($query) => $query->where('status', $status))
@@ -150,7 +170,9 @@ class MahalaController extends Controller
     public function show(string $id)
     {
         try {
-            $mahala = Mahala::query()->findOrFail($id);
+            $mahala = Mahala::query()
+                ->where('status', 'published')
+                ->findOrFail($id);
 
             return response()->json([
                 'data' => $this->formatMahala($mahala),
