@@ -38,6 +38,7 @@ Route::apiResource('topics', TopicController::class)->only(['index', 'show']);
 Route::apiResource('posts', PostController::class)->only(['index', 'show']);
 Route::get('posts/{post}/comments', [CommentController::class, 'index']);
 Route::post('mahalas/bulk-save', [MahalaController::class, 'bulkSave']);
+Route::delete('mahalas/bulk-delete/{id}', [MahalaController::class, 'destroyFromGeoeditor']);
 Route::post('logs', [ClientLogController::class, 'store'])->middleware('throttle:60,1');
 
 Route::middleware('auth:sanctum')->group(function () {

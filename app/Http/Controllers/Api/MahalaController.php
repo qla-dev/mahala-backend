@@ -232,6 +232,33 @@ class MahalaController extends Controller
         }
     }
 
+    public function destroyFromGeoeditor(string $id)
+    {
+        try {
+            $mahala = Mahala::query()->findOrFail($id);
+            $mahala->delete();
+
+            return response()->json([
+                'message' => 'Mahala je uspjesno obrisana.',
+            ], 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Mahala nije pronadjena.',
+                'error' => $e->getMessage(),
+            ], 404);
+        } catch (QueryException $e) {
+            return response()->json([
+                'message' => 'Doslo je do greske u bazi pri brisanju mahale.',
+                'error' => $e->getMessage(),
+            ], 500);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Doslo je do neocekivane greske pri brisanju mahale.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function rules(bool $isUpdate = false, ?Mahala $mahala = null): array
     {
         $required = $isUpdate ? 'sometimes' : 'required';
