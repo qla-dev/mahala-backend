@@ -68,4 +68,11 @@ return [
         ],
     ],
 
+    // Agent API (docs/agent-api.md). Only the bcrypt hash of the secret is
+    // stored; AGENT_USERS lists the usernames the agent may post/comment as.
+    'agent' => [
+        'secret_hash' => env('AGENT_SECRET_HASH'),
+        'users' => array_values(array_filter(array_map('trim', explode(',', (string) env('AGENT_USERS', ''))))),
+    ],
+
 ];

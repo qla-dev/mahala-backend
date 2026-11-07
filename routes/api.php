@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AgentController;
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\BlockedController;
 use App\Http\Controllers\Api\CommentController;
@@ -43,6 +44,13 @@ Route::prefix('geoeditor/mahalas')->group(function () {
     Route::delete('bulk-delete/{id}', [MahalaController::class, 'destroyFromGeoeditor']);
 });
 Route::post('logs', [ClientLogController::class, 'store'])->middleware('throttle:60,1');
+
+// Agent API (docs/agent-api.md): guarded by the agent secret, acts as an allow-listed user.
+Route::prefix('agent')->middleware('throttle:20,1')->group(function () {
+    Route::get('context', [AgentController::class, 'context'])->name('agent.context');
+    Route::post('posts', [AgentController::class, 'storePost'])->name('agent.posts.store');
+    Route::post('posts/{post}/comments', [AgentController::class, 'storeComment'])->name('agent.comments.store');
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('auth')->group(function () {
