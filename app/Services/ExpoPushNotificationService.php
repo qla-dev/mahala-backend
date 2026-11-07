@@ -11,6 +11,14 @@ class ExpoPushNotificationService
 {
     private const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
+    // The app bundles new_notification.mp3 (Android raw resource names cannot
+    // contain hyphens). Older app builds registered the hyphenated name, which
+    // iOS cannot find, so it is mapped to the bundled file.
+    private const NOTIFICATION_SOUND = 'new_notification.mp3';
+    private const LEGACY_NOTIFICATION_SOUNDS = ['new-notification.mp3'];
+    // Only older builds omit the channel ID, and they created this channel.
+    private const DEFAULT_CHANNEL_ID = 'mahala-notifications';
+
     public function sendNotification(Notification $notification): void
     {
         try {
@@ -81,14 +89,25 @@ class ExpoPushNotificationService
         return ($preferences[$category] ?? true) !== false;
     }
 
+    private function soundFor(PushToken $token): string
+    {
+        $sound = $token->sound;
+
+        if (! $sound || in_array($sound, self::LEGACY_NOTIFICATION_SOUNDS, true)) {
+            return self::NOTIFICATION_SOUND;
+        }
+
+        return $sound;
+    }
+
     private function messageFor(PushToken $token, Notification $notification): array
     {
         return array_filter([
             'to' => $token->token,
             'title' => $this->titleFor($notification),
             'body' => $this->bodyFor($notification),
-            'sound' => $token->sound ?: 'new-notification.mp3',
-            'channelId' => $token->notification_channel_id ?: 'mahala-notifications',
+            'sound' => $this->soundFor($token),
+            'channelId' => $token->notification_channel_id ?: self::DEFAULT_CHANNEL_ID,
             'priority' => 'default',
             'data' => [
                 'type' => 'notification',

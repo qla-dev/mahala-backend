@@ -1,0 +1,6 @@
+# The repo root is inside the web root (the API is served from /public), so
+# never serve dotfiles such as .env or .deploy-token.
+Options -Indexes
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

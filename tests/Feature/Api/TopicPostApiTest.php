@@ -674,6 +674,8 @@ class TopicPostApiTest extends TestCase
             'hidden' => false,
         ]);
 
+        Sanctum::actingAs($commenter);
+
         $this->postJson("/api/posts/{$post->id}/comments", [
             'author_user_id' => $commenter->id,
             'content' => 'Novi push komentar',
@@ -687,6 +689,7 @@ class TopicPostApiTest extends TestCase
                 && $payload['to'] === 'ExponentPushToken[owner-token]'
                 && $payload['title'] === 'Novi komentar'
                 && $payload['channelId'] === 'mahala-notifications'
+                && $payload['sound'] === 'new_notification.mp3'
                 && $payload['data']['type'] === 'notification';
         });
     }
