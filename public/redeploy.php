@@ -9,19 +9,6 @@ ini_set('zlib.output_compression', '0');
 
 $baseDir = dirname(__DIR__);
 
-// Optional shared secret: when a .deploy-token file exists in the project root,
-// the request must carry ?token=<value> (or the X-Deploy-Token header).
-$tokenFile = $baseDir.DIRECTORY_SEPARATOR.'.deploy-token';
-if (PHP_SAPI !== 'cli' && is_file($tokenFile)) {
-    $expectedToken = trim((string) file_get_contents($tokenFile));
-    $givenToken = (string) ($_GET['token'] ?? $_SERVER['HTTP_X_DEPLOY_TOKEN'] ?? '');
-    if ($expectedToken === '' || ! hash_equals($expectedToken, $givenToken)) {
-        http_response_code(403);
-        exit("Forbidden.
-");
-    }
-}
-
 $lock = fopen(sys_get_temp_dir().DIRECTORY_SEPARATOR.'mahala-backend-'.sha1($baseDir).'.lock', 'c');
 if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
     http_response_code(409);
