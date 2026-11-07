@@ -47,7 +47,7 @@ class VoteController extends Controller
         }
 
         return response()->json([
-            'message' => 'Glas za objavu je uspjesno sacuvan.',
+            'message' => 'Glas za objavu je uspješno sačuvan.',
             'data' => $this->postVoteSummary($post, $userId),
         ]);
     }
@@ -84,7 +84,7 @@ class VoteController extends Controller
         }
 
         return response()->json([
-            'message' => 'Glas za komentar je uspjesno sacuvan.',
+            'message' => 'Glas za komentar je uspješno sačuvan.',
             'data' => $this->commentVoteSummary($comment, $userId),
         ]);
     }

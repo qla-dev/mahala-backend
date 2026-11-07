@@ -40,7 +40,7 @@ class ProfileDataController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju podataka profila.',
+                'message' => 'Došlo je do greške pri učitavanju podataka profila.',
                 'error' => $e->getMessage(),
             ], 500);
         }

@@ -36,7 +36,7 @@ class MahalaController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju mahala.',
+                'message' => 'Došlo je do greške pri učitavanju mahala.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -61,7 +61,7 @@ class MahalaController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju mahala.',
+                'message' => 'Došlo je do greške pri učitavanju mahala.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -81,17 +81,17 @@ class MahalaController extends Controller
             ]));
 
             return response()->json([
-                'message' => 'Mahala je uspjesno kreirana.',
+                'message' => 'Mahala je uspješno kreirana.',
                 'data' => $this->formatMahala($mahala),
             ], 201);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri kreiranju mahale.',
+                'message' => 'Došlo je do greške u bazi pri kreiranju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri kreiranju mahale.',
+                'message' => 'Došlo je do neočekivane greške pri kreiranju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -149,19 +149,19 @@ class MahalaController extends Controller
             });
 
             return response()->json([
-                'message' => 'Mahale su uspjesno sacuvane.',
+                'message' => 'Mahale su uspješno sačuvane.',
                 'data' => $mahalas,
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri cuvanju mahala.',
+                'message' => 'Došlo je do greške u bazi pri čuvanju mahala.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri cuvanju mahala.',
+                'message' => 'Došlo je do neočekivane greške pri čuvanju mahala.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -179,12 +179,12 @@ class MahalaController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Mahala nije pronadjena.',
+                'message' => 'Mahala nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju mahale.',
+                'message' => 'Došlo je do greške pri učitavanju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -199,22 +199,22 @@ class MahalaController extends Controller
             $mahala->refresh();
 
             return response()->json([
-                'message' => 'Mahala je uspjesno azurirana.',
+                'message' => 'Mahala je uspješno ažurirana.',
                 'data' => $this->formatMahala($mahala),
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Mahala nije pronadjena.',
+                'message' => 'Mahala nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri azuriranju mahale.',
+                'message' => 'Došlo je do greške u bazi pri ažuriranju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri azuriranju mahale.',
+                'message' => 'Došlo je do neočekivane greške pri ažuriranju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -234,21 +234,21 @@ class MahalaController extends Controller
             $mahala->delete();
 
             return response()->json([
-                'message' => 'Mahala je uspjesno obrisana.',
+                'message' => 'Mahala je uspješno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Mahala nije pronadjena.',
+                'message' => 'Mahala nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri brisanju mahale.',
+                'message' => 'Došlo je do greške u bazi pri brisanju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri brisanju mahale.',
+                'message' => 'Došlo je do neočekivane greške pri brisanju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -261,21 +261,21 @@ class MahalaController extends Controller
             $mahala->delete();
 
             return response()->json([
-                'message' => 'Mahala je uspjesno obrisana.',
+                'message' => 'Mahala je uspješno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Mahala nije pronadjena.',
+                'message' => 'Mahala nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri brisanju mahale.',
+                'message' => 'Došlo je do greške u bazi pri brisanju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri brisanju mahale.',
+                'message' => 'Došlo je do neočekivane greške pri brisanju mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }

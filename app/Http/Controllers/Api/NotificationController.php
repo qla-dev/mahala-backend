@@ -46,7 +46,7 @@ class NotificationController extends Controller
 
             if ($ids->isEmpty()) {
                 return response()->json([
-                    'message' => 'Nema notifikacija za oznacavanje kao vidjene.',
+                    'message' => 'Nema notifikacija za označavanje kao vidjene.',
                     'data' => ['seen_count' => 0],
                 ]);
             }
@@ -57,7 +57,7 @@ class NotificationController extends Controller
         $seenCount = $query->update(['read_at' => now()]);
 
         return response()->json([
-            'message' => 'Notifikacije su oznacene kao vidjene.',
+            'message' => 'Notifikacije su označene kao vidjene.',
             'data' => ['seen_count' => $seenCount],
         ]);
     }

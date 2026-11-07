@@ -31,7 +31,7 @@ class LocationDebugReportController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Location debug report je sacuvan.',
+            'message' => 'Location debug report je sačuvan.',
             'data' => [
                 'id' => $report->id,
                 'created_at' => $report->created_at,

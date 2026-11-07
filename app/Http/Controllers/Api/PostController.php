@@ -120,7 +120,7 @@ class PostController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju objava iz feeda.',
+                'message' => 'Došlo je do greške pri učitavanju objava iz feeda.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -165,7 +165,7 @@ class PostController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju objava.',
+                'message' => 'Došlo je do greške pri učitavanju objava.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -196,8 +196,8 @@ class PostController extends Controller
 
             return response()->json([
                 'message' => $draftReason
-                    ? 'Objava je sacuvana kao draft.'
-                    : 'Objava je uspjesno kreirana.',
+                    ? 'Objava je sačuvana kao draft.'
+                    : 'Objava je uspješno kreirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
                 'meta' => [
                     'location_inside_mahala' => $isInsideMahala,
@@ -208,12 +208,12 @@ class PostController extends Controller
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri kreiranju objave.',
+                'message' => 'Došlo je do greške u bazi pri kreiranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri kreiranju objave.',
+                'message' => 'Došlo je do neočekivane greške pri kreiranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -240,12 +240,12 @@ class PostController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Objava nije pronadjena.',
+                'message' => 'Objava nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju objave.',
+                'message' => 'Došlo je do greške pri učitavanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -266,24 +266,24 @@ class PostController extends Controller
             $post->refresh();
 
             return response()->json([
-                'message' => 'Objava je uspjesno azurirana.',
+                'message' => 'Objava je uspješno ažurirana.',
                 'data' => $this->formatPost($post, $request->user('sanctum')?->id),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Objava nije pronadjena.',
+                'message' => 'Objava nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri azuriranju objave.',
+                'message' => 'Došlo je do greške u bazi pri ažuriranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri azuriranju objave.',
+                'message' => 'Došlo je do neočekivane greške pri ažuriranju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -299,7 +299,7 @@ class PostController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Pregled objave je uspjesno sacuvan.',
+            'message' => 'Pregled objave je uspješno sačuvan.',
             'data' => [
                 'post_id' => $post->id,
                 'views_count' => $post->views()->count(),
@@ -339,7 +339,7 @@ class PostController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri ponovnom pokusaju objave.',
+                'message' => 'Došlo je do neočekivane greške pri ponovnom pokušaju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -358,21 +358,21 @@ class PostController extends Controller
             $post->delete();
 
             return response()->json([
-                'message' => 'Objava je uspjesno obrisana.',
+                'message' => 'Objava je uspješno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Objava nije pronadjena.',
+                'message' => 'Objava nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri brisanju objave.',
+                'message' => 'Došlo je do greške u bazi pri brisanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri brisanju objave.',
+                'message' => 'Došlo je do neočekivane greške pri brisanju objave.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -578,7 +578,7 @@ class PostController extends Controller
             $this->deleteStoredImage($imageUri);
 
             throw ValidationException::withMessages([
-                'content' => [$payload['reason'] ?: 'Objava nije prosla sigurnosnu provjeru.'],
+                'content' => [$payload['reason'] ?: 'Objava nije prošla sigurnosnu provjeru.'],
             ]);
         }
 
@@ -760,12 +760,12 @@ PROMPT;
         if (!$source) {
             if ($this->isHeicUpload($file)) {
                 throw ValidationException::withMessages([
-                    'image' => ['HEIC slika nije konvertovana. Pokusaj ponovo ili izaberi JPEG sliku.'],
+                    'image' => ['HEIC slika nije konvertovana. Pokušaj ponovo ili izaberi JPEG sliku.'],
                 ]);
             }
 
             throw ValidationException::withMessages([
-                'image' => ['Slika nije podrzana ili je ostecena.'],
+                'image' => ['Slika nije podržana ili je oštećena.'],
             ]);
         }
 

@@ -96,7 +96,7 @@ class TopicController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju tema za trenutne mahale.',
+                'message' => 'Došlo je do greške pri učitavanju tema za trenutne mahale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -127,7 +127,7 @@ class TopicController extends Controller
             ], 200);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju tema.',
+                'message' => 'Došlo je do greške pri učitavanju tema.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -144,19 +144,19 @@ class TopicController extends Controller
             $topic = Topic::query()->create($attributes);
 
             return response()->json([
-                'message' => 'Tema je uspjesno kreirana.',
+                'message' => 'Tema je uspješno kreirana.',
                 'data' => $this->formatTopic($topic),
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri kreiranju teme.',
+                'message' => 'Došlo je do greške u bazi pri kreiranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri kreiranju teme.',
+                'message' => 'Došlo je do neočekivane greške pri kreiranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -174,12 +174,12 @@ class TopicController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Tema nije pronadjena.',
+                'message' => 'Tema nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju teme.',
+                'message' => 'Došlo je do greške pri učitavanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -194,24 +194,24 @@ class TopicController extends Controller
             $topic->refresh();
 
             return response()->json([
-                'message' => 'Tema je uspjesno azurirana.',
+                'message' => 'Tema je uspješno ažurirana.',
                 'data' => $this->formatTopic($topic),
             ], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Tema nije pronadjena.',
+                'message' => 'Tema nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri azuriranju teme.',
+                'message' => 'Došlo je do greške u bazi pri ažuriranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri azuriranju teme.',
+                'message' => 'Došlo je do neočekivane greške pri ažuriranju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -230,28 +230,28 @@ class TopicController extends Controller
 
             if ($topic->is_system) {
                 return response()->json([
-                    'message' => 'Sistemske teme nije moguce obrisati.',
+                    'message' => 'Sistemske teme nije moguće obrisati.',
                 ], 422);
             }
 
             $topic->delete();
 
             return response()->json([
-                'message' => 'Tema je uspjesno obrisana.',
+                'message' => 'Tema je uspješno obrisana.',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Tema nije pronadjena.',
+                'message' => 'Tema nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri brisanju teme.',
+                'message' => 'Došlo je do greške u bazi pri brisanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri brisanju teme.',
+                'message' => 'Došlo je do neočekivane greške pri brisanju teme.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -497,7 +497,7 @@ class TopicController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'name' => [$payload['reason'] ?: 'Tema nije prosla sigurnosnu provjeru.'],
+                'name' => [$payload['reason'] ?: 'Tema nije prošla sigurnosnu provjeru.'],
             ]);
         }
     }

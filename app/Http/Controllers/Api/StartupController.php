@@ -154,7 +154,7 @@ class StartupController extends Controller
             throw $e;
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju pocetnih podataka.',
+                'message' => 'Došlo je do greške pri učitavanju početnih podataka.',
                 'error' => $e->getMessage(),
             ], 500);
         }

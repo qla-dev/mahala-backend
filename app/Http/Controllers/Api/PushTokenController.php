@@ -40,7 +40,7 @@ class PushTokenController extends Controller
         );
 
         return response()->json([
-            'message' => 'Push token je uspjesno sacuvan.',
+            'message' => 'Push token je uspješno sačuvan.',
             'data' => [
                 'id' => $token->id,
                 'provider' => $token->provider,

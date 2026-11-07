@@ -46,12 +46,12 @@ class CommentController extends Controller
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Objava nije pronadjena.',
+                'message' => 'Objava nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do greske pri ucitavanju komentara.',
+                'message' => 'Došlo je do greške pri učitavanju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -116,8 +116,8 @@ class CommentController extends Controller
 
             return response()->json([
                 'message' => $draftReason
-                    ? 'Komentar je sacuvan kao draft.'
-                    : 'Komentar je uspjesno kreiran.',
+                    ? 'Komentar je sačuvan kao draft.'
+                    : 'Komentar je uspješno kreiran.',
                 'data' => $this->formatComment($comment, $request->user('sanctum')?->id),
                 'meta' => [
                     'draft_reason' => $draftReason,
@@ -127,17 +127,17 @@ class CommentController extends Controller
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Objava nije pronadjena.',
+                'message' => 'Objava nije pronađena.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri kreiranju komentara.',
+                'message' => 'Došlo je do greške u bazi pri kreiranju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri kreiranju komentara.',
+                'message' => 'Došlo je do neočekivane greške pri kreiranju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -176,12 +176,12 @@ class CommentController extends Controller
             throw $e;
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Komentar nije pronadjen.',
+                'message' => 'Komentar nije pronađen.',
                 'error' => $e->getMessage(),
             ], 404);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri ponovnom pokusaju komentara.',
+                'message' => 'Došlo je do neočekivane greške pri ponovnom pokušaju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -202,16 +202,16 @@ class CommentController extends Controller
             $comment->delete();
 
             return response()->json([
-                'message' => 'Komentar je uspjesno obrisan.',
+                'message' => 'Komentar je uspješno obrisan.',
             ], 200);
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Doslo je do greske u bazi pri brisanju komentara.',
+                'message' => 'Došlo je do greške u bazi pri brisanju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Doslo je do neocekivane greske pri brisanju komentara.',
+                'message' => 'Došlo je do neočekivane greške pri brisanju komentara.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -331,7 +331,7 @@ class CommentController extends Controller
             ]);
 
             throw ValidationException::withMessages([
-                'content' => [$payload['reason'] ?: 'Komentar nije prosao sigurnosnu provjeru.'],
+                'content' => [$payload['reason'] ?: 'Komentar nije prošao sigurnosnu provjeru.'],
             ]);
         }
     }
