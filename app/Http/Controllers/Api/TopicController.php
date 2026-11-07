@@ -138,6 +138,7 @@ class TopicController extends Controller
         try {
             $validated = $request->validate($this->rules());
             $attributes = $this->buildAttributes($validated);
+            $attributes['created_by_user_id'] = $request->user()->id;
 
             $this->topicAiCheck($attributes);
 
@@ -165,7 +166,7 @@ class TopicController extends Controller
     public function show(Request $request, string $id)
     {
         try {
-            $topicQuery = Topic::query()->where('id', $id);
+            $topicQuery = Topic::query()->where('id', $id)->where('status', 1);
             $this->applyAuthorBlockFilter($topicQuery, $this->blockedUserIds($request->user('sanctum')?->id), 'created_by_user_id');
             $topic = $topicQuery->firstOrFail();
 
@@ -189,8 +190,15 @@ class TopicController extends Controller
     {
         try {
             $topic = Topic::query()->findOrFail($id);
+            if ((int) $topic->created_by_user_id !== (int) $request->user()->id) {
+                return response()->json(['message' => 'Nemate dozvolu za ovu temu.'], 403);
+            }
             $validated = $request->validate($this->rules(isUpdate: true, topic: $topic));
-            $topic->update($this->buildAttributes($validated, $topic));
+            $attributes = $this->buildAttributes($validated, $topic);
+            $attributes['created_by_user_id'] = $topic->created_by_user_id;
+            $attributes['is_system'] = $topic->is_system;
+            $this->topicAiCheck($attributes);
+            $topic->update($attributes);
             $topic->refresh();
 
             return response()->json([
@@ -378,9 +386,9 @@ class TopicController extends Controller
     private function topicAiCheck(array $attributes): void
     {
         if (!config('services.post_ai_moderation.enabled')) {
-            Log::info('[MAHALA][topic-ai] moderation skipped because it is disabled');
-
-            return;
+            throw ValidationException::withMessages([
+                'name' => ['Sigurnosna provjera nije dostupna. Tema nije objavljena.'],
+            ]);
         }
 
         $apiKey = trim((string) config('services.openrouter.api_key'));

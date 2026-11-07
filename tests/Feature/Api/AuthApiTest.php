@@ -53,6 +53,7 @@ class AuthApiTest extends TestCase
         ]);
 
         $this->postJson('/api/auth/login', [
+            'terms_accepted' => true,
             'email' => 'user@example.com',
             'password' => 'password123',
         ])
@@ -61,6 +62,7 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('user.username', 'mahala_user');
 
         $this->postJson('/api/auth/login', [
+            'terms_accepted' => true,
             'username' => 'mahala_user',
             'password' => 'password123',
         ])
@@ -79,6 +81,7 @@ class AuthApiTest extends TestCase
         ]);
 
         $this->postJson('/api/auth/login', [
+            'terms_accepted' => true,
             'email' => 'user@example.com',
             'password' => 'wrong-password',
         ])
@@ -160,6 +163,7 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('message', 'Kod je ispravan.');
 
         $this->postJson('/api/auth/forgot-password/reset', [
+            'terms_accepted' => true,
             'identifier' => 'mahala_user',
             'code' => '4321',
             'password' => 'new-password123',
@@ -315,6 +319,7 @@ class AuthApiTest extends TestCase
         ]);
 
         $this->postJson('/api/auth/google', [
+            'terms_accepted' => true,
             'id_token' => 'valid-google-id-token',
         ])
             ->assertOk()

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Blocked;
+use App\Services\ContentModerationService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -17,7 +18,7 @@ class BlockedController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ContentModerationService $moderation)
     {
         $validated = $request->validate([
             'blocked_id' => ['required', 'integer', Rule::exists('users', 'id')],
@@ -32,10 +33,8 @@ class BlockedController extends Controller
             ]);
         }
 
-        $blocked = Blocked::query()->firstOrCreate([
-            'user_id' => $userId,
-            'blocked_id' => $blockedId,
-        ]);
+        $moderation->report($request->user(), 'user', $blockedId, 'Korisnik je blokiran zbog neprikladnog ponašanja.');
+        $blocked = Blocked::query()->where('user_id', $userId)->where('blocked_id', $blockedId)->firstOrFail();
 
         return response()->json([
             'data' => [

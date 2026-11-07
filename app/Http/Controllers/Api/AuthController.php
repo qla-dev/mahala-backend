@@ -88,10 +88,13 @@ class AuthController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'digits:4'],
             'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+            'terms_accepted' => ['required', 'accepted'],
         ]);
 
         $email = Str::lower($user->email);
         $this->assertValidVerificationCode($email, $validated['code'], self::PASSWORD_RESET_CODE_TTL_MINUTES);
+
+        $this->assertAccountIsActive($user);
 
         DB::transaction(function () use ($user, $email, $validated) {
             $user->forceFill([
@@ -104,7 +107,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Lozinka je uspješno promijenjena.',
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $this->issueAuthToken($user),
             'user' => $this->formatUser($user->refresh()),
         ]);
     }
@@ -167,7 +170,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Registracija je uspješna.',
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $this->issueAuthToken($user),
             'user' => $this->formatUser($user),
             'is_new_user' => true,
         ], 201);
@@ -179,6 +182,7 @@ class AuthController extends Controller
             'email' => ['required_without:username', 'nullable', 'string'],
             'username' => ['required_without:email', 'nullable', 'string'],
             'password' => ['required', 'string'],
+            'terms_accepted' => ['required', 'accepted'],
         ]);
 
         $identifier = $validated['email'] ?? $validated['username'] ?? null;
@@ -196,7 +200,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Prijava je uspješna.',
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $this->issueAuthToken($user),
             'user' => $this->formatUser($user),
         ]);
     }
@@ -205,7 +209,7 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'id_token' => ['required', 'string'],
-            'terms_accepted' => ['sometimes', 'boolean'],
+            'terms_accepted' => ['required', 'accepted'],
         ]);
 
         $googleUser = $this->verifyGoogleIdToken($validated['id_token']);
@@ -231,6 +235,7 @@ class AuthController extends Controller
         }
 
         if ($user) {
+            $this->assertAccountIsActive($user);
             if ($user->google_id && $user->google_id !== $googleId) {
                 throw ValidationException::withMessages([
                     'id_token' => ['Ovaj email je već povezan sa drugim Google nalogom.'],
@@ -256,7 +261,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Google prijava je uspješna.',
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $this->issueAuthToken($user),
             'user' => $this->formatUser($user->refresh()),
             'is_new_user' => $isNewUser,
         ]);
@@ -267,7 +272,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'identity_token' => ['required', 'string'],
             'full_name' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'terms_accepted' => ['sometimes', 'boolean'],
+            'terms_accepted' => ['required', 'accepted'],
         ]);
 
         $appleUser = $this->verifyAppleIdentityToken($validated['identity_token']);
@@ -296,6 +301,7 @@ class AuthController extends Controller
         }
 
         if ($user) {
+            $this->assertAccountIsActive($user);
             if ($user->apple_id && $user->apple_id !== $appleId) {
                 throw ValidationException::withMessages([
                     'identity_token' => ['Ovaj email je već povezan sa drugim Apple nalogom.'],
@@ -327,7 +333,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Apple prijava je uspješna.',
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $this->issueAuthToken($user),
             'user' => $this->formatUser($user->refresh()),
             'is_new_user' => $isNewUser,
         ]);
@@ -338,6 +344,22 @@ class AuthController extends Controller
         return response()->json([
             'user' => $this->formatUser($request->user()),
         ]);
+    }
+
+    private function assertAccountIsActive(User $user): void
+    {
+        abort_if($user->suspended_at !== null, 403, 'Račun je suspendovan zbog kršenja pravila zajednice.');
+    }
+
+    private function issueAuthToken(User $user): string
+    {
+        $this->assertAccountIsActive($user);
+        $user->forceFill([
+            'terms_accepted_at' => now(),
+            'terms_version' => config('moderation.terms_version'),
+        ])->save();
+
+        return $user->createToken('auth_token')->plainTextToken;
     }
 
     public function logout(Request $request)

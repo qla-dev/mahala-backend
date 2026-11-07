@@ -25,7 +25,9 @@ class CommentController extends Controller
     public function index(Request $request, string $post)
     {
         try {
-            Post::query()->findOrFail($post);
+            Post::query()->where('status', 1)->where(function ($query) {
+                $query->whereNull('hidden')->orWhere('hidden', false);
+            })->findOrFail($post);
             $userId = $request->user('sanctum')?->id;
             $blockedUserIds = $this->blockedUserIds($userId);
 
@@ -60,7 +62,9 @@ class CommentController extends Controller
     public function store(Request $request, string $post)
     {
         try {
-            $postModel = Post::query()->findOrFail($post);
+            $postModel = Post::query()->where('status', 1)->where(function ($query) {
+                $query->whereNull('hidden')->orWhere('hidden', false);
+            })->findOrFail($post);
 
             $validated = $request->validate([
                 'author' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')],
@@ -103,7 +107,7 @@ class CommentController extends Controller
             $comment = Comment::query()->create([
                 'post_id' => $post,
                 'parent_id' => $parentId,
-                'author' => $validated['author'] ?? $validated['author_user_id'] ?? null,
+                'author' => $request->user()->id,
                 'content' => $validated['content'],
                 'is_anonymous' => $validated['is_anonymous'] ?? true,
                 'status' => $validated['status'] ?? 1,
@@ -220,9 +224,7 @@ class CommentController extends Controller
     private function commentAiCheck(string $content, array $context = []): void
     {
         if (!config('services.post_ai_moderation.enabled')) {
-            Log::info('[MAHALA][comment-ai] moderation skipped because it is disabled');
-
-            return;
+            throw new \RuntimeException('Sigurnosna provjera nije dostupna. Sadržaj ostaje neobjavljen.');
         }
 
         $apiKey = trim((string) config('services.openrouter.api_key'));

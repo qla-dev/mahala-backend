@@ -3,6 +3,10 @@
 use App\Http\Controllers\Api\AgentController;
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\BlockedController;
+use App\Http\Controllers\Api\ContentReportController;
+use App\Http\Controllers\Api\ModerationController;
+use App\Http\Controllers\Api\SupportRequestController;
+use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\ClientLogController;
 use App\Http\Controllers\Api\NotificationController;
@@ -31,6 +35,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('startup', StartupController::class);
+Route::post('support-requests', [SupportRequestController::class, 'store'])->middleware('throttle:5,10');
 Route::get('feed', [PostController::class, 'feed']);
 Route::get('profile-data/{type}/{user}', ProfileDataController::class);
 Route::get('topics/current-mahalas', [TopicController::class, 'currentMahalas']);
@@ -52,7 +57,7 @@ Route::prefix('agent')->middleware('throttle:20,1')->group(function () {
     Route::post('posts/{post}/comments', [AgentController::class, 'storeComment'])->name('agent.comments.store');
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', EnsureAccountIsActive::class])->group(function () {
     Route::prefix('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::patch('profile', [AuthController::class, 'updateProfile']);
@@ -66,7 +71,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::post('notifications/bulk-see', [NotificationController::class, 'bulkSee']);
     Route::get('blocked', [BlockedController::class, 'index']);
-    Route::post('blocked', [BlockedController::class, 'store']);
+    Route::post('blocked', [BlockedController::class, 'store'])->middleware('throttle:20,1');
+    Route::post('content-reports', [ContentReportController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('moderation/reports', [ModerationController::class, 'index']);
+    Route::patch('moderation/reports/{report}', [ModerationController::class, 'update']);
+    Route::get('moderation/support', [ModerationController::class, 'support']);
+    Route::patch('moderation/support/{ticket}', [ModerationController::class, 'resolveSupport']);
     Route::post('push-tokens', [PushTokenController::class, 'store']);
     Route::post('revenuecat/sync-pro', [RevenueCatController::class, 'syncPro']);
     Route::post('location-debug-reports', [LocationDebugReportController::class, 'store']);

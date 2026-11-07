@@ -231,7 +231,16 @@ class PostController extends Controller
                     'views as views_count',
                     'comments as active_comments_count' => fn ($query) => $this->applyAuthorBlockFilter($query->where('status', 1), $blockedUserIds, 'author'),
                 ])
-                ->where('id', $id);
+                ->where('id', $id)
+                ->where(function ($query) use ($userId) {
+                    $query->where('status', 1);
+                    if ($userId) {
+                        $query->orWhere('author_user_id', $userId);
+                    }
+                })
+                ->where(function ($query) {
+                    $query->whereNull('hidden')->orWhere('hidden', false);
+                });
             $this->applyAuthorBlockFilter($postQuery, $blockedUserIds, 'author_user_id');
             $post = $postQuery->firstOrFail();
 
@@ -437,9 +446,7 @@ class PostController extends Controller
     private function postAiCheck(array $attributes, ?string $imageUri = null): void
     {
         if (!config('services.post_ai_moderation.enabled')) {
-            Log::info('[MAHALA][post-ai] moderation skipped because it is disabled');
-
-            return;
+            throw new \RuntimeException('Sigurnosna provjera nije dostupna. Sadržaj ostaje neobjavljen.');
         }
 
         $apiKey = trim((string) config('services.openrouter.api_key'));
@@ -485,6 +492,8 @@ class PostController extends Controller
 
             if ($imagePart !== null) {
                 $userContent[] = $imagePart;
+            } else {
+                throw new \RuntimeException('Slika nije dostupna za sigurnosnu provjeru. Objava ostaje neobjavljena.');
             }
         }
 
