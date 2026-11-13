@@ -23,10 +23,21 @@ return [
     ],
 
     'google' => [
-        'client_ids' => array_values(array_filter(array_map(
+        // Accepted `aud` values for Google ID tokens.
+        // GOOGLE_CLIENT_IDS: web + iOS clients (Cloud project 605722065062).
+        // GOOGLE_ANDROID_CLIENT_IDS: the web client in the `mahala-frontend` Cloud
+        // project that Android's native Google Sign-In requests ID tokens for (the
+        // Android OAuth clients registered for mahala.qla.dev live in that project).
+        'client_ids' => array_values(array_unique(array_filter(array_map(
             'trim',
-            explode(',', (string) env('GOOGLE_CLIENT_IDS', ''))
-        ))),
+            array_merge(
+                explode(',', (string) env('GOOGLE_CLIENT_IDS', '')),
+                explode(',', (string) env(
+                    'GOOGLE_ANDROID_CLIENT_IDS',
+                    '777653689344-sa9e40arhia86kbmiuo33tqqv92unjq1.apps.googleusercontent.com'
+                ))
+            )
+        )))),
     ],
 
     'apple' => [
