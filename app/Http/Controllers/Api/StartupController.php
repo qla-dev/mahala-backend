@@ -228,8 +228,9 @@ class StartupController extends Controller
     {
         if ($sort === 'popular') {
             return $query
-                ->orderByDesc('recent_upvotes_count')
+                ->orderByRaw('(upvotes_count - downvotes_count) DESC')
                 ->orderByDesc('upvotes_count')
+                ->orderByDesc('recent_upvotes_count')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id');
         }
