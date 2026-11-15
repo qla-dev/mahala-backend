@@ -236,8 +236,8 @@ class StartupController extends Controller
 
         if ($sort === 'commented') {
             return $query
-                ->orderByDesc('recent_comments_count')
                 ->orderByDesc('active_comments_count')
+                ->orderByDesc('recent_comments_count')
                 ->orderByDesc('created_at')
                 ->orderByDesc('id');
         }
