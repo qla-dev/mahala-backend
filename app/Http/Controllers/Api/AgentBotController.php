@@ -75,11 +75,16 @@ class AgentBotController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $profile = $request->validate([
-            'name' => ['required_without:region', 'string', 'max:120'],
-            'region' => ['required_without:name', self::REGION],
+            'name' => ['required_without_all:region,username', 'string', 'max:120'],
+            'region' => ['required_without_all:name,username', self::REGION],
+            'username' => ['required_without_all:name,region', 'string', 'regex:/^[a-z][a-z0-9_.-]{2,49}$/D'],
         ]);
         $user = User::where('bot', true)->findOrFail($id);
-        $user->forceFill($profile)->save();
+        try {
+            $user->forceFill($profile)->save();
+        } catch (UniqueConstraintViolationException) {
+            return response()->json(['message' => 'Korisničko ime je zauzeto.'], 409);
+        }
 
         return response()->json(['data' => $user->only(self::FIELDS)]);
     }
