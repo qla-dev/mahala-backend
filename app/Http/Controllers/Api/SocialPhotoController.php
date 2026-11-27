@@ -15,6 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 class SocialPhotoController extends Controller
 {
+    private const DEFAULT_CHANNELS = ['facebook', 'instagram'];
+
+    private const CHANNELS = [...self::DEFAULT_CHANNELS, 'linkedin'];
+
     public function publish(Request $request, SocialPhotoPublisher $publisher): JsonResponse
     {
         $secretHash = (string) config('services.social.publish_token_hash');
@@ -24,8 +28,8 @@ class SocialPhotoController extends Controller
         $data = $request->validate([
             'image' => ['required', 'file', 'mimes:jpg,jpeg', 'max:8192', 'dimensions:min_width=320,max_width=1440'],
             'caption' => ['required', 'string', 'max:2200'],
-            'channels' => ['sometimes', 'array', 'list', 'min:1', 'max:2'],
-            'channels.*' => ['required', 'distinct', Rule::in(['facebook', 'instagram'])],
+            'channels' => ['sometimes', 'array', 'list', 'min:1', 'max:'.count(self::CHANNELS)],
+            'channels.*' => ['required', 'distinct', Rule::in(self::CHANNELS)],
             'publication_id' => ['required', 'uuid'],
         ]);
 
@@ -35,7 +39,7 @@ class SocialPhotoController extends Controller
             throw ValidationException::withMessages(['image' => 'The image must have a width-to-height ratio between 0.8 and 1.91.']);
         }
 
-        $channels = $data['channels'] ?? ['facebook', 'instagram'];
+        $channels = $data['channels'] ?? self::DEFAULT_CHANNELS;
         $id = strtolower($data['publication_id']);
         $photo = $data['image']->get();
         $caption = $data['caption'];
@@ -43,7 +47,7 @@ class SocialPhotoController extends Controller
         $cache = Cache::store('file');
         $stateKey = 'social:publication:'.$id;
 
-        $result = $cache->lock($stateKey.':lock', 120)->get(function () use (
+        $result = $cache->lock($stateKey.':lock', 180)->get(function () use (
             $publisher, $channels, $photo, $caption, $fingerprint, $cache, $stateKey
         ) {
             $state = $cache->get($stateKey, ['fingerprint' => $fingerprint, 'channels' => []]);
@@ -58,8 +62,7 @@ class SocialPhotoController extends Controller
                     continue;
                 }
 
-                $account = $channel === 'facebook' ? 'page_id' : 'instagram_id';
-                if (! config("services.social.{$account}") || ! config('services.social.page_token')) {
+                if (! $publisher->isConfigured($channel)) {
                     $results[$channel] = ['status' => 'unconfigured'];
 
                     continue;
@@ -79,9 +82,11 @@ class SocialPhotoController extends Controller
                     // Reserve the channel before sending a write we cannot safely repeat after a timeout.
                     $state['channels'][$channel] = ['status' => 'unknown', 'stage' => 'publish'];
                     abort_unless($cache->put($stateKey, $state, now()->addDays(7)), 503, 'Could not reserve the publication.');
-                    $results[$channel] = $channel === 'facebook'
-                        ? $publisher->facebook($photo, $caption)
-                        : $publisher->instagram($imageUrl, $caption);
+                    $results[$channel] = match ($channel) {
+                        'facebook' => $publisher->facebook($photo, $caption),
+                        'instagram' => $publisher->instagram($imageUrl, $caption),
+                        'linkedin' => $publisher->linkedin($photo, $caption),
+                    };
                     $state['channels'][$channel] = $results[$channel];
                     abort_unless($cache->put($stateKey, $state, now()->addDays(7)), 503, 'Could not save the publication result.');
                 } finally {

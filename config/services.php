@@ -65,6 +65,9 @@ return [
         'page_token' => env('META_PAGE_TOKEN'),
         'instagram_id' => env('META_IG_USER_ID'),
         'graph_version' => env('META_GRAPH_VERSION', 'v27.0'),
+        'linkedin_organization_id' => env('LINKEDIN_ORGANIZATION_ID'),
+        'linkedin_access_token' => env('LINKEDIN_ACCESS_TOKEN'),
+        'linkedin_version' => env('LINKEDIN_API_VERSION', '202611'),
     ],
 
     'openrouter' => [
