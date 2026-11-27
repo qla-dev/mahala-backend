@@ -11,7 +11,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -31,10 +30,6 @@ class AgentController extends Controller
 
     public function context(Request $request): JsonResponse
     {
-        if ($denied = $this->denyUnlessAuthorized($request)) {
-            return $denied;
-        }
-
         return response()->json([
             'users' => User::query()
                 ->whereIn('username', $this->allowedUsernames())
@@ -51,7 +46,7 @@ class AgentController extends Controller
 
     public function storePost(Request $request, PostController $posts)
     {
-        if ($denied = $this->denyUnlessAuthorized($request)) {
+        if ($denied = $this->authorizeActor($request)) {
             return $denied;
         }
 
@@ -64,7 +59,7 @@ class AgentController extends Controller
 
     public function storeComment(Request $request, string $post, CommentController $comments)
     {
-        if ($denied = $this->denyUnlessAuthorized($request)) {
+        if ($denied = $this->authorizeActor($request)) {
             return $denied;
         }
 
@@ -72,23 +67,11 @@ class AgentController extends Controller
     }
 
     /**
-     * Checks the secret and acts as the requested user for the rest of the
+     * Checks the allow-list and acts as the requested user for the rest of the
      * request. Returns an error response, or null when authorized.
      */
-    private function denyUnlessAuthorized(Request $request): ?JsonResponse
+    private function authorizeActor(Request $request): ?JsonResponse
     {
-        $secret = (string) ($request->header('X-Agent-Secret') ?: $request->input('secret', ''));
-        $hash = (string) config('services.agent.secret_hash');
-
-        if ($secret === '' || $hash === '' || ! Hash::check($secret, $hash)) {
-            return response()->json(['message' => 'Neispravan ili nedostaje agent secret — ništa nije objavljeno.'], 403);
-        }
-
-        // Context only needs the secret.
-        if ($request->routeIs('agent.context')) {
-            return null;
-        }
-
         $as = trim((string) $request->input('as', ''));
 
         if ($as === '') {

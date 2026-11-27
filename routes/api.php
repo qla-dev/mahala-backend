@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AgentController;
+use App\Http\Controllers\Api\AgentBotController;
+use App\Http\Middleware\AuthenticateAgent;
 use App\Http\Controllers\Api\SocialPhotoController;
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\BlockedController;
@@ -55,7 +57,10 @@ Route::prefix('geoeditor/mahalas')->group(function () {
 Route::post('logs', [ClientLogController::class, 'store'])->middleware('throttle:60,1');
 
 // Agent API (docs/agent-api.md): guarded by the agent secret, acts as an allow-listed user.
-Route::prefix('agent')->middleware('throttle:20,1')->group(function () {
+Route::prefix('agent')->middleware(['throttle:20,1', AuthenticateAgent::class])->group(function () {
+    Route::get('bots', [AgentBotController::class, 'index']);
+    Route::post('bots', [AgentBotController::class, 'store']);
+    Route::patch('bots/{id}', [AgentBotController::class, 'update'])->whereNumber('id');
     Route::get('context', [AgentController::class, 'context'])->name('agent.context');
     Route::post('posts', [AgentController::class, 'storePost'])->name('agent.posts.store');
     Route::post('posts/{post}/comments', [AgentController::class, 'storeComment'])->name('agent.comments.store');
