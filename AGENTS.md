@@ -8,6 +8,6 @@ Run tests with `php artisan test` (phpunit.xml uses SQLite `:memory:`). Never re
 
 After pushing, redeploy by opening (plain-text streamed output):
 
-- `https://api.mahala.app/public/redeploy.php` — `git pull --ff-only`, `composer install --no-dev`, clears caches, `config:cache`
+- `https://api.mahala.app/public/redeploy.php` — `git pull --ff-only`, `composer install --no-dev`, clears the config cache, runs pending migrations, clears route/view/application caches, `config:cache`
 
-Redeploy does not run migrations. A release that adds a migration needs `php artisan migrate` run explicitly, after the user approves it.
+Redeploy runs `php artisan migrate --force --no-interaction` under its deployment lock and stops on failure. Keep one-time destructive maintenance operations in `database/manual-migrations`, outside the automatic migration path.
