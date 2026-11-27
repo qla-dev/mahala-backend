@@ -59,6 +59,14 @@ return [
         'timeout' => (int) env('POST_AI_MODERATION_TIMEOUT', 45),
     ],
 
+    'social' => [
+        'publish_token_hash' => env('SOCIAL_PUBLISH_TOKEN_SHA256'),
+        'page_id' => env('META_PAGE_ID'),
+        'page_token' => env('META_PAGE_TOKEN'),
+        'instagram_id' => env('META_IG_USER_ID'),
+        'graph_version' => env('META_GRAPH_VERSION', 'v27.0'),
+    ],
+
     'openrouter' => [
         'api_key' => env('OPENROUTER_API_KEY'),
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AgentController;
+use App\Http\Controllers\Api\SocialPhotoController;
 use App\Http\Controllers\Api\MahalaController;
 use App\Http\Controllers\Api\BlockedController;
 use App\Http\Controllers\Api\ContentReportController;
@@ -35,6 +36,9 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('startup', StartupController::class);
+Route::post('social/photos', [SocialPhotoController::class, 'publish'])->middleware('throttle:10,1');
+Route::get('social/photos/image/{image}.jpg', [SocialPhotoController::class, 'image'])
+    ->whereUuid('image')->middleware('signed')->name('social.photo.image');
 Route::post('support-requests', [SupportRequestController::class, 'store'])->middleware('throttle:5,10');
 Route::get('feed', [PostController::class, 'feed']);
 Route::get('profile-data/{type}/{user}', ProfileDataController::class);
