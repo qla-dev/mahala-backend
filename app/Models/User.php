@@ -54,6 +54,7 @@ class User extends Authenticatable
             'suspended_at' => 'datetime',
             'terms_accepted_at' => 'datetime',
             'password' => 'hashed',
+            'bot' => 'boolean',
         ];
     }
 
